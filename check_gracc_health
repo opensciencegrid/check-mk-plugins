@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import socket, select
+import struct
+import sys
+import requests
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    args = parse_args()
+
+    try:
+        #start_time = time.time()
+        state = gracc_health(args.destination)
+        #end_time = time.time()
+        #run_time = end_time - start_time
+
+        #print 'OK |time=%f' % (run_time)
+        sys.exit(state)
+    except socket.gaierror as e:
+        # Could not resolve hostname => UNKNOWN
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_UNKNOWN)
+    except Exception as e:
+        # Calling everything else critical:
+        # - socket.error   (Network is unreachable)
+        # - socket.timeout
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_CRITICAL)
+
+def gracc_health(host):
+    r = requests.get('https://' + host + '/q/_cat/health?h=status')
+    #print (r.text)
+    if r.text == 'green\n':
+        print ('GRACC ES cluster health status: green')
+        state = STATE_OK
+    elif r.text == 'yellow\n':
+        print ('GRACC ES cluster health status: yellow')
+        state = STATE_WARNING
+    else: 
+        print ('GRACC ES cluster health status not green or yellow')
+        state = STATE_CRITICAL
+    #print (state)
+    return state
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('destination')
+
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

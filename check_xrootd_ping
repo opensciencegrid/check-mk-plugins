@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import socket, select
+import struct
+import sys
+import time
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    args = parse_args()
+
+    try:
+        start_time = time.time()
+        xrootd_ping(args.destination, args.port, args.timeout)
+        end_time = time.time()
+        run_time = end_time - start_time
+
+        print 'OK |time=%f' % (run_time)
+        sys.exit(STATE_OK)
+    except socket.gaierror as e:
+        # Could not resolve hostname => UNKNOWN
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_UNKNOWN)
+    except Exception as e:
+        # Calling everything else critical:
+        # - socket.error   (Network is unreachable)
+        # - socket.timeout
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_CRITICAL)
+
+def xrootd_ping(host, port=1094, timeout=30):
+    '''Do an xrootd handshake and parse the reply'''
+    # http://xrootd.org/doc/prod/XRdv299.htm
+    handshake = struct.pack('!iiiii', 0, 0, 0, 4, 2012)
+    reply_struct = '!2shiii'
+    reply_len = struct.calcsize(reply_struct)
+
+    # Connect, send handshake, and get reply
+    s = socket.create_connection((host, port), timeout=timeout)
+    s.send(handshake)
+    reply = s.recv(reply_len)
+    s.close
+
+    # Unpack reply
+    streamid, status, msglen, msgval1, msgval2 = struct.unpack_from(reply_struct, reply)
+
+    if status == 0:
+        return True
+    else:
+        raise IOError('Did not receive valid status from xrootd')
+
+    return status
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--timeout', '-t', type=int, default=30)
+    parser.add_argument('--port', '-p', type=int, default=1094)
+    parser.add_argument('destination')
+
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

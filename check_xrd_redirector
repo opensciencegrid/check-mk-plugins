@@ -1,0 +1,70 @@
+#!/usr/bin/env python
+
+import argparse
+import itertools
+import socket
+import subprocess
+import sys
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def get_all_ips(hostname):
+    '''Return a set of all IP addresses associated with a hostname'''
+    return set(addr[4][0] for addr in socket.getaddrinfo(hostname, None))
+
+# Recipe from https://docs.python.org/2/library/itertools.html
+def pairwise(iterable):
+    '''s -> (s0,s1), (s1,s2), (s2, s3), ...'''
+    a, b = itertools.tee(iterable)
+    next(b, None)
+    return itertools.izip(a, b)
+
+def main():
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+
+    hostlists = dict()
+    # Get all IPs for a given hostname
+    for ip in get_all_ips(args.hostname):
+        cmd = ['xrdfs', ip, 'locate', '-m', '*']
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        # Query xrootd for a list of registered servers
+        hostlist = set()
+        for row in proc.stdout.readlines():
+            # stash.osgconnect.net:1094 Server Read
+            host, _ = row.split(' ', 1)
+            hostlist.add(host)
+            hostlists[ip] = hostlist
+
+    # Compare pairs of hosts, alerting if the host list does not match
+    for h1, h2, in pairwise(hostlists):
+        if hostlists[h1] != hostlists[h2]:
+            diff = ', '.join(hostlists[h1] ^ hostlists[h2])
+            messages.append("Hostlists differ: %s != %s (%s)" % (h1, h2, diff))
+            states.append(STATE_CRITICAL)
+        else:
+            messages.append("Hostlists match: %s == %s" % (h1, h2))
+
+    state = max(states)
+    message = ', '.join(messages)
+
+    if not message:
+        message = 'OK'
+
+    print(message)
+    sys.exit(state)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('hostname')
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

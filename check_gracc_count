@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import socket, select
+import struct
+import sys
+import requests
+import json
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    args = parse_args()
+    api_url = args.api_interface + '/' + args.index + '/' + args.query_string
+    #print (api_url)
+    try:
+        state = gracc_index_count(api_url)
+        sys.exit(state)
+    except socket.gaierror as e:
+        # Could not resolve hostname => UNKNOWN
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_UNKNOWN)
+    except Exception as e:
+        # Calling everything else critical:
+        # - socket.error   (Network is unreachable)
+        # - socket.timeout
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_CRITICAL)
+
+def gracc_index_count(api_url):
+    #r = requests.get('https://' + host + '/q/gracc.osg.summary/_count?q=@received: [now-1H TO now]')
+    r = requests.get(api_url)
+    data = json.loads(r.text)
+    count = data['count']
+    perf_data = ' |count=' + str(count)
+    #print (data['count'])
+    if count > 0:
+        print ('GRACC received ' +str(count) +' records')
+        state = STATE_OK
+    elif count == 0:
+        print ('GRACC received 0 records')
+        state = STATE_CRITICAL
+    else: 
+        print ('Invalid output')
+        state = STATE_UNKNOWN
+    print (perf_data)
+    return state
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--api-interface', dest='api_interface', type=str, 
+                        default='https://gracc.opensciencegrid.org/q', 
+                        help='The public interface of ElasticSearch API, e.g. https://gracc.opensciencegrid.org/q')
+    parser.add_argument('--index', dest='index', type=str,
+                        help='The index name, e.g. gracc.osg.summary')
+    parser.add_argument('--query-string', dest='query_string', type=str,
+                        help='The query string')
+
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

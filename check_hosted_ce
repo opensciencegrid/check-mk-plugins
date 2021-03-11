@@ -1,0 +1,177 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import sys
+import htcondor
+import os
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+    jobs = []
+
+    job_attrs = [
+        'JobStatus',
+        'ServerTime',
+        'EnteredCurrentStatus',
+        'GridJobStatus',
+        'GridJobId',
+        'HoldReasonCode',
+    ]
+
+    try:
+        coll = htcondor.Collector(args.collector)
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedd = htcondor.Schedd(schedd_ad)
+        jobs = schedd.xquery(requirements='RoutedJob == TRUE', projection=job_attrs)
+    except IOError as e:
+        # Connection failed
+        states.append(STATE_CRITICAL)
+        messages.append(str(e))
+    except Exception as e:
+        # Other error
+        states.append(STATE_UNKNOWN)
+        messages.append(str(e))
+
+    stats = {
+        'held': 0,
+        'idle': 0,
+        'idle_long': 0,
+        'running': 0,
+    }
+    
+    #os.environ['X509_USER_PROXY'] = '/tmp/x509up_u991' 
+
+    # Check for held job
+    for job in jobs:
+        if 'JobStatus' in job:
+            if job['JobStatus'] == 1:
+                stats['idle'] += 1
+                #continue
+            if job['JobStatus'] == 2:
+                stats['running'] += 1
+                continue
+            if job['JobStatus'] == 5 and job.get('HoldReasonCode', None) != 16:
+                stats['held'] += 1
+                continue
+
+        # Has the routed job been idle for longer than 10 minutes, ie not submitted
+        #if job['JobStatus'] == 1 and (job['ServerTime'] - job['EnteredCurrentStatus']) > 60*10 and 'GridJobStatus' not in job:
+        #if job['JobStatus'] == 1 and (job['ServerTime'] - job['EnteredCurrentStatus']) > 600: 
+        # Has the routed job been idle for longer than 24 hours
+        if job['JobStatus'] == 1 and (job['ServerTime'] - job['EnteredCurrentStatus']) > 86400:
+            stats['idle_long'] += 1
+            continue
+
+        # Check for grid job id
+        if 'GridJobId' in job:
+            # Check for remote
+            gridJobId = job['GridJobId']
+            try:
+                remote_id = gridJobId.split(" ")[-1:]
+            except:
+                pass
+
+    #if stats['idle_long'] > 0:
+    if stats['running']==0 and stats['idle_long'] > 0:
+        messages.append("{} Long idle Job".format(stats['idle_long']))
+        states.append(STATE_CRITICAL)
+    
+    if jobs:
+        messages.append("{} running, {} idle, {} held jobs".format(stats['running'], stats['idle'], stats['held']))
+
+    #get glidein entry attributes
+    entry_attr = [] 
+    req_idle = 0
+    hostname = args.collector.split(":")[0]
+    query_const = 'MyType=?="glidefactory" && GLIDEIN_Gatekeeper=?="' + hostname + ' ' + args.collector +'"'
+    resource_name = ''
+    try:
+        factory = htcondor.Collector(args.factory)
+        entry_attr = factory.query(htcondor.AdTypes.Any, query_const, ['Name','GlideinConfigPerEntryMaxHeld','GlideinMonitorTotalRequestedIdle'])
+        #print(entry_attr)
+        if len(entry_attr) < 1:
+            messages.append(" not supported by factory " + args.factory)
+    #except IOError as e:
+        # Connection failed
+        # states.append(STATE_WARNING)
+     #   messages.append("Failed to connect to factory " +args.factory + " (error: " + str(e) +")")
+    except Exception as e:
+        # Other error
+        #states.append(STATE_WARNING)
+        messages.append("Failed to connect to factory " +args.factory + " (error: " + str(e) +")")
+    
+    #print(entry_attr)
+    if len(entry_attr) > 0:
+        try:
+            for attr in entry_attr:
+                resource_name = attr['Name'].split("@")[0]
+                max_held = attr['GlideinConfigPerEntryMaxHeld']
+                req_idle = attr['GlideinMonitorTotalRequestedIdle']
+                if max_held:
+                    if not isinstance(max_held, (int,long,float)): #max_held must be a number
+                        messages.append(", GlideinConfigPerEntryMaxHeld not valid in resource " + resource_name)
+                        #print (messages)
+                        states.append(STATE_WARNING)
+                    else:
+                        (states, messages) = factory_entry_attr_check(stats, max_held, req_idle, resource_name, messages, states)
+        except KeyError as e:
+            messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
+            states.append(STATE_WARNING) 
+        except Exception as e:
+            messages.append(str(e))
+            states.append(STATE_WARNING)
+    else:
+        max_held = float('inf')
+        req_idle = 0
+        resource_name = ''
+        (states, messages) = factory_entry_attr_check(stats, max_held, req_idle, resource_name, messages, states)
+
+    state = max(states)
+    message = ', '.join(messages)
+
+    perf_data = ' |running=%(running)d idle=%(idle)d held=%(held)d' % stats
+    perf_data += ' req_idle=' + str(req_idle)
+    
+    if not message:
+        message = 'OK'
+
+    print(message + perf_data)
+    sys.exit(state)
+
+def factory_entry_attr_check(stats, max_held, req_idle, resource_name, messages, states):
+    if req_idle > 0:
+        messages.append("%s requested idle in resource %s" % (str(req_idle), resource_name))
+        if stats['running'] == 0 :
+            if stats['held'] > 0:
+                states.append(STATE_CRITICAL)
+                messages.append("requests to resource " + resource_name + " held by CE")
+            else:
+                if stats['idle'] == 0:
+                    states.append(STATE_CRITICAL)
+                    messages.append("requests to resource " + resource_name + " not entering CE")
+            if stats['held'] > 0.9 * max_held:
+                states.append(STATE_WARNING)
+                messages.append("held jobs to resource " + resource_name + " exceed 90% of GlideinConfigPerEntryMaxHeld ("+ str(max_held) +")")
+            if stats['held'] > max_held:
+                states.append(STATE_CRITICAL)
+                messages.append("held jobs to resource " + resource_name + " exceed GlideinConfigPerEntryMaxHeld ("+ str(max_held) +")")
+    return (states, messages)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('collector')
+    parser.add_argument('factory')
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

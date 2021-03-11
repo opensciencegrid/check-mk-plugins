@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+# Required RPMs:
+# - gfal2-util
+# - gfal2-plugin-gridftp
+# - osg-ca-certs
+
+# NOTE: If gfal2 (globus) fails to load a PEM certificate, ensure that the
+#       file has a trailing newline. (Open in vi and save.)
+
+import argparse
+import errno
+import hashlib
+import os
+import sys
+import time
+
+# gfal2 isn't part of check_mk's python packages
+sys.path.append('/usr/lib64/python2.7/site-packages')
+import gfal2
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+STATE_NAME = 'OK', 'Warning', 'Critical', 'Unknown'
+
+def main():
+    args = parse_args()
+
+    # List of output messages and status results
+    messages = []
+    statuses = [STATE_OK]
+    perfdata = ''
+
+    # Set certificate paths before globus libraries are loaded
+    if args.client_cert:
+        os.environ['X509_USER_CERT'] = args.client_cert.name
+    if args.private_key:
+        os.environ['X509_USER_KEY'] = args.private_key.name
+
+    # Create gfal2 context
+    ctx = gfal2.creat_context()
+
+    # IPv4/IPv6 flags
+    if args.use_ipv6:
+        ctx.set_opt_boolean("GRIDFTP PLUGIN", "IPV6", True)
+    elif args.use_ipv4:
+        ctx.set_opt_boolean("GRIDFTP PLUGIN", "IPV6", False)
+
+    # Timeout
+    ctx.set_opt_integer("CORE", "NAMESPACE_TIMEOUT", args.timeout)
+    ctx.set_opt_integer("CORE", "CHECKSUM_TIMEOUT", args.timeout)
+
+    try:
+        time_start = time.time()
+        f = ctx.open(args.url, 'r')
+
+        time_connect = time.time()
+        byte_count = 0
+        hctx = hashlib.md5()
+
+        while True:
+            data = f.read(1024*1024)
+            byte_count += len(data)
+
+            if args.md5:
+                hctx.update(data)
+
+            if not data:
+                break
+
+        time_complete = time.time()
+
+        time_total = time_complete - time_start
+        time_first = time_connect - time_start
+
+        # Timeouts
+        if time_total > args.critical:
+            statuses.append(STATE_CRITICAL)
+            messages.append('Timeout exceeded')
+        elif time_total > args.warning:
+            statuses.append(STATE_WARNING)
+            messages.append('Timeout exceeded')
+
+        # Performance data
+        perfdata = '|time=%fs;%f;%f size=%dB time_firstbyte=%fs' % \
+                (time_total, args.warning, args.critical, byte_count, time_first)
+
+        messages.append('%d bytes in %.3f s' % (byte_count, time_total))
+
+        # Optional checksum of data
+        if args.md5:
+            if hctx.hexdigest() == args.md5:
+                messages.append('Checksum OK')
+            else:
+                statuses.append(STATE_CRITICAL)
+                messages.append('Checksum mismatch (%s)' % hctx.hexdigest())
+
+    except gfal2.GError as e:
+        # Protocol not supported => EPROTONOSUPPORT
+        # DNS cannot resolve     => ECOMM
+        if e.code == errno.ETIMEDOUT:
+            statuses.append(STATE_CRITICAL)
+        else:
+            statuses.append(STATE_UNKNOWN)
+
+        messages.append('%s (%s)' % (e.message, errno.errorcode[e.code]))
+    except Exception as e:
+        # Calling anything else critical
+        statuses.append(STATE_CRITICAL)
+        messages.append('Error: %s' % (str(e)))
+
+    status = max(statuses)
+    message = ', '.join(messages)
+
+    print('%s - %s %s' % (STATE_NAME[status], message, perfdata))
+    sys.exit(status)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    # Default timeout
+    timeout = 40
+
+    parser.add_argument('--timeout', '-t', type=int, default=timeout)
+    parser.add_argument('--client-cert', '-J', type=argparse.FileType())
+    parser.add_argument('--private-key', '-K', type=argparse.FileType())
+    parser.add_argument('--md5', help='Expected MD5 hash of output')
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--use-ipv4', '-4', action='store_true')
+    group.add_argument('--use-ipv6', '-6', action='store_true')
+
+    parser.add_argument('--warning', '-w', default=timeout, type=float, help='Response time to warning status (seconds)')
+    parser.add_argument('--critical', '-c', default=timeout, type=float, help='Response time to critical status (seconds)')
+
+    parser.add_argument('url')
+
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

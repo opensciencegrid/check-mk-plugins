@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import sys
+import time
+import htcondor
+#import subprocess
+#import socket
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+    #print (args)
+
+    try:
+        coll = htcondor.Collector(args.collector)
+        daemon_ads = coll.query(htcondor.AdTypes.Any)
+    except IOError as e:
+        # Connection failed
+        states.append(STATE_CRITICAL)
+        messages.append(str(e) + " " +args.collector + " failed.")
+    except Exception as e:
+        # Other error
+        states.append(STATE_UNKNOWN)
+        messages.append(str(e) + " " + args.collector+ " failed.")
+
+    number_of_daemons = len(daemon_ads) 
+    if number_of_daemons:
+        messages.append(str(number_of_daemons) + " active daemons")
+        if number_of_daemons == 0:
+            states.append(STATE_WARNING)
+    else:
+        messages.append("status unknown")
+        states.append(STATE_UNDOWN)
+
+    state = max(states)
+    message = ', '.join(messages)
+
+    perf_data = ' |daemons=%d' % number_of_daemons
+
+    if not message:
+        message = 'OK'
+
+    print(message + perf_data)
+    sys.exit(state)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('collector')
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()
