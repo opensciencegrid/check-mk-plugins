@@ -149,7 +149,7 @@ def main():
 
 def factory_entry_attr_check(stats, max_held, req_idle, resource_name, messages, states):
     if req_idle > 0:
-        messages.append("%s requested idle in resource %s" % (str(req_idle), resource_name))
+        messages.append("%s requested idle for resource %s" % (str(req_idle), resource_name))
         if stats['running'] == 0 :
             if stats['held'] > 0:
                 states.append(STATE_CRITICAL)
