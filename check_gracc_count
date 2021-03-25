@@ -5,8 +5,14 @@ import argparse
 import socket, select
 import struct
 import sys
+import time
 import requests
 import json
+import htcondor
+
+# Uncomment to enable debugging of condor collector communication
+#htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
+#htcondor.enable_debug()
 
 # Nagios exit status
 STATE_OK = 0
@@ -14,12 +20,23 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
+def count_history_jobs(hostname):
+    coll = htcondor.Collector("%s:9619" % hostname )
+    schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, hostname)
+    schedd = htcondor.Schedd(schedd_ad)
+    job_list = list(schedd.history(constraint='true',
+                                   projection=["JobFinishedHookDone"],
+                                   since="JobFinishedHookDone < %d" % (time.time()-2*86400),
+                                   match=1))
+    return len(job_list)
+
 def main():
     args = parse_args()
+
     api_url = args.api_interface + '/' + args.index + '/' + args.query_string
     #print (api_url)
     try:
-        state = gracc_index_count(api_url)
+        state = gracc_index_count(api_url, args.hostname)
         sys.exit(state)
     except socket.gaierror as e:
         # Could not resolve hostname => UNKNOWN
@@ -32,7 +49,7 @@ def main():
         print 'Error: %s' % str(e)
         sys.exit(STATE_CRITICAL)
 
-def gracc_index_count(api_url):
+def gracc_index_count(api_url, hostname):
     #r = requests.get('https://' + host + '/q/gracc.osg.summary/_count?q=@received: [now-1H TO now]')
     r = requests.get(api_url)
     data = json.loads(r.text)
@@ -43,8 +60,15 @@ def gracc_index_count(api_url):
         print ('GRACC received ' +str(count) +' records')
         state = STATE_OK
     elif count == 0:
-        print ('GRACC received 0 records')
-        state = STATE_CRITICAL
+        history_count = 0
+        if hostname:
+            history_count = count_history_jobs(hostname)
+        if history_count:
+            print ('GRACC received 0 records but there were history ads')
+            state = STATE_CRITICAL
+        else:
+            print ('GRACC received 0 records but there were no history ads')
+            state = STATE_OK
     else: 
         print ('Invalid output')
         state = STATE_UNKNOWN
@@ -61,6 +85,8 @@ def parse_args():
                         help='The index name, e.g. gracc.osg.summary')
     parser.add_argument('--query-string', dest='query_string', type=str,
                         help='The query string')
+    parser.add_argument('--ce-hostname', dest='hostname', type=str,
+                        help='CE hostname for query')
 
     return parser.parse_args()
 
