@@ -98,7 +98,7 @@ def main():
     try:
         factory = htcondor.Collector(args.factory)
         entry_attr = factory.query(htcondor.AdTypes.Any, query_const, ['Name','GlideinConfigPerEntryMaxHeld','GlideinMonitorTotalRequestedIdle', 'GlideinMonitorTotalRequestedMaxGlideins', 'GlideinMonitorTotalStatusHeld'])
-        print(entry_attr)
+        #print(entry_attr)
         if len(entry_attr) < 1:
             messages.append(" not supported by factory " + args.factory)
     #except IOError as e:
