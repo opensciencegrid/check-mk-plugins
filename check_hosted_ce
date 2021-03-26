@@ -46,6 +46,7 @@ def main():
         'idle': 0,
         'idle_long': 0,
         'running': 0,
+        'factory_held': 0,
     }
     
     #os.environ['X509_USER_PROXY'] = '/tmp/x509up_u991' 
@@ -96,7 +97,7 @@ def main():
     resource_name = ''
     try:
         factory = htcondor.Collector(args.factory)
-        entry_attr = factory.query(htcondor.AdTypes.Any, query_const, ['Name','GlideinConfigPerEntryMaxHeld','GlideinMonitorTotalRequestedIdle'])
+        entry_attr = factory.query(htcondor.AdTypes.Any, query_const, ['Name','GlideinConfigPerEntryMaxHeld','GlideinMonitorTotalRequestedIdle', 'GlideinMonitorTotalStatusHeld'])
         #print(entry_attr)
         if len(entry_attr) < 1:
             messages.append(" not supported by factory " + args.factory)
@@ -115,6 +116,8 @@ def main():
             for attr in entry_attr:
                 resource_name = attr['Name'].split("@")[0]
                 max_held = attr['GlideinConfigPerEntryMaxHeld']
+                factory_held = attr['GlideinMonitorTotalStatusHeld']
+                stats['factory_held'] += factory_held
                 req_idle = attr['GlideinMonitorTotalRequestedIdle']
                 if max_held:
                     if not isinstance(max_held, (int,long,float)): #max_held must be a number
@@ -122,7 +125,7 @@ def main():
                         #print (messages)
                         states.append(STATE_WARNING)
                     else:
-                        (states, messages) = factory_entry_attr_check(stats, max_held, req_idle, resource_name, messages, states)
+                        (states, messages) = factory_entry_attr_check(stats, max_held, factory_held, req_idle, resource_name, messages, states)
         except KeyError as e:
             messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
             states.append(STATE_WARNING) 
@@ -131,14 +134,15 @@ def main():
             states.append(STATE_WARNING)
     else:
         max_held = float('inf')
+        factory_held = 0
         req_idle = 0
         resource_name = ''
-        (states, messages) = factory_entry_attr_check(stats, max_held, req_idle, resource_name, messages, states)
+        (states, messages) = factory_entry_attr_check(stats, max_held, factory_held, req_idle, resource_name, messages, states)
 
     state = max(states)
     message = ', '.join(messages)
 
-    perf_data = ' |running=%(running)d idle=%(idle)d held=%(held)d' % stats
+    perf_data = ' |running=%(running)d idle=%(idle)d held=%(held)d factory_held=%(factory_held)d' % stats
     perf_data += ' req_idle=' + str(req_idle)
     
     if not message:
@@ -147,11 +151,11 @@ def main():
     print(message + perf_data)
     sys.exit(state)
 
-def factory_entry_attr_check(stats, max_held, req_idle, resource_name, messages, states):
+def factory_entry_attr_check(stats, max_held, factory_held, req_idle, resource_name, messages, states):
     if req_idle > 0:
         messages.append("%s requested idle for resource %s" % (str(req_idle), resource_name))
         if stats['running'] == 0 :
-            if stats['held'] > 0:
+            if stats['held'] > 0 or factory_held > 0:
                 states.append(STATE_CRITICAL)
                 messages.append("requests to resource " + resource_name + " held by CE")
             else:
