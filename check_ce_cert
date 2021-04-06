@@ -1,0 +1,189 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+#import socket, select
+#import struct
+import sys
+#import requests
+#import json
+import htcondor
+import subprocess
+from OpenSSL import crypto
+from datetime import datetime, timedelta
+
+# Uncomment to enable debugging of condor collector communication
+#htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
+#htcondor.enable_debug()
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--ce-hostname', dest='ce_hostname', type=str,
+                        help='CE hostname for query')
+    parser.add_argument('--collector', dest='collector', type=str,
+                        default='collector2.opensciencegrid.org:9619',
+                        help='Collector hostname and port, default collector2.opensciencegrid.org:9619')
+    parser.add_argument('--warning', dest='expire_warning', type=float,
+                        default=21, 
+                        help='Expiry warning ')
+    parser.add_argument('--critical', dest='expire_critical', type=float, 
+                        default=7,
+                        help='Expiry critical ')
+    return parser.parse_args()
+
+
+def main():
+    global args, states, messages
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+    cert_text = None
+    try:
+        cert_text = get_ce_cert_text(args.collector, args.ce_hostname)
+    except Exception as e:
+        #if failed to get remote cert, report warning
+        messages.append(str(e))
+        states.append(STATE_WARNING)
+    if cert_text:
+        check_cert (cert_text)
+
+    state = max(states)
+    message = ' '.join(messages)
+    print (message)
+    sys.exit(state)
+
+class CertError(Exception):
+    pass
+
+def get_ce_cert_text(collector, ce_hostname):
+    '''
+    For GSI authentication, one of the following should be true:
+        1. a valid user proxy at /tmp/x509up_uxxx, where xxx is the user's uid number 
+        2. export X509_USER_PROXY = <user proxy path>
+        3. export X509_USER_CERT = <user cert path>; export X509_USER_KEY = <user key path> 
+    '''
+    cert_text = None
+    try:
+        ad = htcondor.Collector(collector).locate(htcondor.DaemonTypes.Schedd, ce_hostname)
+        sec = htcondor.SecMan().ping(ad, "READ")
+        #print (sec)
+        cert_text = sec["ServerPublicCert"]
+            
+    except Exception as e:
+        messages.append(str(e))
+        states.append(STATE_WARNING)
+    
+    if cert_text:
+         return cert_text
+    else:
+        raise CertError("Failed to get remote cert.")
+     
+def check_cert(cert_text):
+    """Check if a certificate is valid and not expired"""
+    try:
+        check_cert_valid(cert_text)
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_text)
+        expiry = check_cert_expire(cert, timedelta(days=args.expire_critical))
+    except (CertError, IOError) as e:
+        messages.append(str(e))
+        states.append(STATE_CRITICAL)
+        return STATE_CRITICAL, "%s" % (e)
+    except (ImportError) as e:
+        messages.append(str(e))
+        states.append(STATE_UNKNOWN)
+        return STATE_UNKNOWN, "Missing pyOpenSSL, %s" % (e)
+
+    try:
+        expiry = check_cert_expire(cert, timedelta(days=args.expire_warning))
+    except CertError as e:
+        messages.append(str(e))
+        states.append(STATE_WARNING)
+        return STATE_WARNING, "%s" % (e)
+    
+    messages.append ("Expires %s." % (expiry))
+    return STATE_OK, "Expires %s." % (expiry)
+
+def check_cert_valid(cert_text, ca_path="/etc/grid-security/certificates/"):
+    """Verify a certificate against system CAs"""
+    """Keep CAs on checkmk site up-to-date (yum install osg-ca-certs)"""
+
+    # Check against system CA certs
+    proc = subprocess.Popen(["openssl", "verify", "-CApath", ca_path],
+                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = proc.communicate(input=cert_text.encode())[0]
+
+    if ": OK\n" in output.decode():
+        messages.append('Host certificate is valid against osg-ca-certs.')
+        return True
+    else:
+        raise CertError("Failed to verify cert against osg-ca-certs.")
+
+def get_cert_expiry(cert):
+    """Return datetime with certificate expiration, and cert"""
+
+    expiry = datetime.strptime(cert.get_notAfter(), '%Y%m%d%H%M%SZ')
+
+    return expiry
+
+def check_cert_expire(cert, delta):
+    """Check if a certificate expires within a given time delta"""
+    expiry = get_cert_expiry(cert)
+    if cert.has_expired():
+        raise CertError("Expired.")
+
+    if datetime.utcnow() + delta >= expiry:
+        raise CertError("Expires %s." % \
+                (ago_human(datetime.utcnow() - expiry)))
+
+    return expiry
+
+##############################################################################
+# ago 0.0.5 (public domain) - https://bitbucket.org/russellballestrini/ago
+# make customizable human readable timedeltas
+def ago_delta2dict( delta ):
+    """Accepts a delta, returns a dictionary of units"""
+    delta = abs( delta )
+    return {
+        'year'   : delta.days / 365 ,
+        'day'    : delta.days % 365 ,
+        'hour'   : delta.seconds / 3600 ,
+        'minute' : (delta.seconds / 60) % 60 ,
+        'second' : delta.seconds % 60 ,
+        'microsecond' : delta.microseconds
+    }
+
+def ago_human(dt, precision=2, past_tense='{0} ago', future_tense='in {0}'):
+    """Accept a datetime or timedelta, return a human readable delta string"""
+    delta = dt
+    if type(dt) is not type(timedelta()):
+        delta = datetime.now() - dt
+
+    the_tense = past_tense
+    if delta < timedelta(0):
+        the_tense = future_tense
+
+    d = ago_delta2dict( delta )
+    hlist = []
+    count = 0
+    units = ( 'year', 'day', 'hour', 'minute', 'second', 'microsecond' )
+    for unit in units:
+        if count >= precision: break # met precision
+        if d[ unit ] == 0: continue # skip 0's
+        s = '' if d[ unit ] == 1 else 's' # handle plurals
+        hlist.append( '%s %s%s' % ( d[unit], unit, s ) )
+        count += 1
+    human_delta = ', '.join( hlist )
+    return the_tense.format(human_delta)
+# END ago
+##############################################################################
+
+if __name__ == "__main__":
+    # Run script as main
+    main()
