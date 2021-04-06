@@ -78,7 +78,7 @@ def get_ce_cert_text(collector, ce_hostname):
             
     except Exception as e:
         messages.append(str(e))
-        states.append(STATE_WARNING)
+        states.append(STATE_CRITICAL)
     
     if cert_text:
          return cert_text
