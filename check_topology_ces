@@ -2,10 +2,17 @@
 
 import argparse
 import os
+import sys
 import re
 import xml.etree.ElementTree as ET
 
 import htcondor
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
 
 def fqdn_from_gatekeeper_and_gridtype(gatekeeper, gridtype):
     if gridtype.startswith("batch"):  # BOSCO: "login@hostname"
@@ -91,7 +98,20 @@ def main():
 
     factory_ces = set(fqdn for fqdn in get_ce_fqdns_from_factory(args.factory) if is_hosted_fqdn(fqdn))
 
-    print(factory_ces.difference(active_topology_ces))
+    inconsistent_ces = factory_ces.difference(active_topology_ces)
+
+    msg = "Factory and topology are consistent for hosted CEs."
+    if inconsistent_ces:
+        msg = "The following CEs are in the factory but not active in topology: %s" % ", ".join(inconsistent_ces)
+
+    print("%s|count=%d" % (msg, len(inconsistent_ces)))
+
+    if inconsistent_ces:
+        sys.exit(STATE_CRITICAL)
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as exc:
+        print("Exception occcurred when running probe: %s" % str(exc))
+        sys.exit(STATE_UNKNOWN)
