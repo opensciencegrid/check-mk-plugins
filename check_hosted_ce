@@ -6,7 +6,7 @@ import sys
 import htcondor
 import os
 
-# Nagios exit status
+# Nagios exit status types
 STATE_OK = 0
 STATE_WARNING = 1
 STATE_CRITICAL = 2
