@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import socket, select
+import struct
+import sys
+import time
+import requests
+import json
+import htcondor
+
+# Uncomment to enable debugging of condor collector communication
+#htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
+#htcondor.enable_debug()
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def count_history_jobs(hostname):
+    coll = htcondor.Collector("flock.opensciencegrid.org" )
+    schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, hostname)
+    schedd = htcondor.Schedd(schedd_ad)
+    job_list = list(schedd.history(constraint='true',
+                                   projection=["JobFinishedHookDone", "LastRemotePool"],
+                                   since="JobFinishedHookDone < %d" % (time.time()-20*86400),
+                                   match=1))
+    job_flocked_to_osg = list(schedd.history(constraint='LastRemotePool == "flock.opensciencegrid.org"',
+                                   projection=["JobFinishedHookDone", "LastRemotePool"],
+                                   since="JobFinishedHookDone < %d" % (time.time()-20*86400),
+                                   match=1))
+    #print len(job_list)
+    #return len(job_list)
+    return ([len(job_list), len(job_flocked_to_osg)])
+
+def main():
+    args = parse_args()
+
+    api_url = args.api_interface + '/' + args.index + '/' + args.query_string
+    #print (api_url)
+    try:
+        state = gracc_index_count(api_url, args.hostname)
+        sys.exit(state)
+    except socket.gaierror as e:
+        # Could not resolve hostname => UNKNOWN
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_UNKNOWN)
+    except Exception as e:
+        # Calling everything else critical:
+        # - socket.error   (Network is unreachable)
+        # - socket.timeout
+        print 'Error: %s' % str(e)
+        sys.exit(STATE_CRITICAL)
+
+def gracc_index_count(api_url, hostname):
+    #r = requests.get('https://' + host + '/q/gracc.osg.summary/_count?q=@received: [now-1H TO now]')
+    r = requests.get(api_url)
+    data = json.loads(r.text)
+    count = data['count']
+    perf_data = ' |count=' + str(count)
+    #print (data['count'])
+    if count > 0:
+        print ('GRACC received ' +str(count) +' records')
+        state = STATE_OK
+    elif count == 0:
+        history_count = 0
+        if hostname:
+            history_count = count_history_jobs(hostname)
+        if history_count[1]:
+            print ('GRACC received 0 records but there were history ads flocked to OSG')
+            state = STATE_CRITICAL
+        elif history_count[0]:
+            print ('GRACC received 0 records, history ads not flocked to OSG')
+            state = STATE_OK
+        else:
+            print ('GRACC received 0 records but there were no history ads')
+            state = STATE_OK
+    else:
+        print ('Invalid output')
+        state = STATE_UNKNOWN
+    print (perf_data)
+    return state
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--api-interface', dest='api_interface', type=str,
+                        default='https://gracc.opensciencegrid.org/q',
+                        help='The public interface of ElasticSearch API, e.g. https://gracc.opensciencegrid.org/q')
+    parser.add_argument('--index', dest='index', type=str,
+                        help='The index name, e.g. gracc.osg.summary')
+    parser.add_argument('--query-string', dest='query_string', type=str,
+                        help='The query string')
+    parser.add_argument('--submitter', dest='hostname', type=str,
+                        help='Submitter hostname for query')
+
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()
