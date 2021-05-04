@@ -26,11 +26,11 @@ def count_history_jobs(hostname):
     schedd = htcondor.Schedd(schedd_ad)
     job_list = list(schedd.history(constraint='true',
                                    projection=["JobFinishedHookDone", "LastRemotePool"],
-                                   since="JobFinishedHookDone < %d" % (time.time()-20*86400),
+                                   since="JobFinishedHookDone < %d" % (time.time()-2*86400),
                                    match=1))
     job_flocked_to_osg = list(schedd.history(constraint='LastRemotePool == "flock.opensciencegrid.org"',
                                    projection=["JobFinishedHookDone", "LastRemotePool"],
-                                   since="JobFinishedHookDone < %d" % (time.time()-20*86400),
+                                   since="JobFinishedHookDone < %d" % (time.time()-2*86400),
                                    match=1))
     #print len(job_list)
     #return len(job_list)
