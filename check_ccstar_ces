@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import re
+import xml.etree.ElementTree as ET
+
+import htcondor
+
+def fqdn_from_gatekeeper_and_gridtype(gatekeeper, gridtype):
+    if gridtype.startswith("batch"):  # BOSCO: "login@hostname"
+        if "@" in gatekeeper:
+            return gatekeeper.split("@")[1]
+    elif gridtype == "condor":  # Condor-C: "<schedd host[:port]> <cm host[:port]>"
+        match = re.match(r"[^: ]+(?:[:]\d+)?\s+([^: ]+)", gatekeeper)
+        if match:
+            return match.group(1)
+    elif gridtype in ["cream", "gt2", "gt5"]:  # CREAM, GRAM: "hostname[:port]/endpoint"
+        match = re.match(r"([^:/]+)", gatekeeper)
+        if match:
+            return match.group(1)
+    elif gridtype == "ec2":  # EC2: "SCHEME://HOST[:PORT][/...]"
+        match = re.match(r"\w+://([^:/]+)", gatekeeper)
+        if match:
+            return match.group(1)
+    elif gridtype == "nordugrid":  # this one's prety easy :)
+        return gatekeeper
+
+
+def is_hosted_fqdn(fqdn):
+    return ((fqdn.startswith("hosted-ce") or fqdn.startswith("pearc-ce")) and ( \
+        fqdn.endswith(".grid.uchicago.edu") or fqdn.endswith("opensciencegrid.org"))) or \
+        fqdn.endswith(".svc.opensciencegrid.org") \
+
+
+def get_ce_fqdns_from_factory(factory_fqdn):
+    entry_info = set()
+    coll = htcondor.Collector(factory_fqdn)
+    entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="glidefactory"', ['GLIDEIN_Gatekeeper', 'GLIDEIN_GridType','IsCCStar'])
+    #print(coll.query(htcondor.AdTypes.Any, 'MyType=?"glidefactory"'))i
+    for entry in entries:
+        if 'GLIDEIN_Gatekeeper' not in entry or 'GLIDEIN_GridType' not in entry or 'IsCCStar' not in entry:
+            continue
+        entry_info.add(fqdn_from_gatekeeper_and_gridtype(entry['GLIDEIN_Gatekeeper'], entry['GLIDEIN_GridType']))
+    return entry_info
+
+def get_ce_ccstar_from_central_collector():
+    entry_info = set()
+    coll = htcondor.Collector("collector.opensciencegrid.org:9619")
+    entries = coll.query(htcondor.AdTypes.Schedd, "IsCCStar", ['CollectorHost'])
+    for entry in entries:
+        match = re.match(".*:",entry['CollectorHost'])
+        if match:
+            entry_info.add(match.group(0)[:-1])
+        else:
+            entry_info.add(entry['CollectorHost'])
+    return entry_info
+    
+def get_attribs(entry):
+    gk = entry.get("gatekeeper").strip()
+    gridtype = entry.get("gridtype").strip()
+    fqdn = fqdn_from_gatekeeper_and_gridtype(gk, gridtype)
+    hosted = is_hosted_fqdn(fqdn) if fqdn else False
+    vos = vos_from_entry(entry)
+    vos = ",".join("'%s'" % vo.strip() for vo in sorted(vos))
+
+    return gk, gridtype, fqdn, hosted, vos
+
+def get_tree(params):
+    return ET.fromstring(
+        os.popen(
+            "curl -Ls 'https://topology.opensciencegrid.org/rgsummary/xml?%s'" % params
+        ).read()
+    )
+
+
+def get_ce_resources_with_fqdns_and_services(resourcegroup):
+    resources = resourcegroup.findall("./Resources/Resource")
+    res_tuples = [
+        (res, res.find("./FQDN").text.strip(), res.findall("./Services/Service"))
+        for res in resources
+        if res.find("./FQDN") is not None and res.find("./Services/Service") is not None
+    ]
+    for res_tuple in res_tuples:
+        if [svc for svc in res_tuple[2] if svc.find("./Name").text.strip() == "CE"]:
+            yield res_tuple
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--factory", default="gfactory-2.opensciencegrid.org")
+    args = parser.parse_args()
+
+    prod_tree = get_tree("gridtype=on&gridtype_1=on")
+    ccstar_ces = set()
+    for resourcegroup in prod_tree.findall("./ResourceGroup"):
+        for resource, fqdn, services in get_ce_resources_with_fqdns_and_services(resourcegroup):
+            if resource.find("./Tags").find("./Tag") is not None and resource.find("./Tags").find("./Tag").text == "CC*":
+                    ccstar_ces.add(fqdn)
+    collector_ces = get_ce_ccstar_from_central_collector()
+    print(collector_ces.difference(ccstar_ces))
+   
+if __name__ == '__main__':
+    main()
