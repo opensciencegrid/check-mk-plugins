@@ -24,7 +24,7 @@ def count_history_jobs(hostname):
     coll = htcondor.Collector("%s:9619" % hostname )
     schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, hostname)
     schedd = htcondor.Schedd(schedd_ad)
-    job_list = list(schedd.history(requirements='true',
+    job_list = list(schedd.history(requirements='JobCurrentStartDate',
                                    projection=["JobFinishedHookDone"],
                                    since="JobFinishedHookDone < %d" % (time.time()-2*86400),
                                    match=1))
