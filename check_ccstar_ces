@@ -2,10 +2,18 @@
 
 import argparse
 import os
+import sys
 import re
 import xml.etree.ElementTree as ET
 
 import htcondor
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
 
 def fqdn_from_gatekeeper_and_gridtype(gatekeeper, gridtype):
     if gridtype.startswith("batch"):  # BOSCO: "login@hostname"
@@ -98,7 +106,20 @@ def main():
             if resource.find("./Tags").find("./Tag") is not None and resource.find("./Tags").find("./Tag").text == "CC*":
                     ccstar_ces.add(fqdn)
     collector_ces = get_ce_ccstar_from_central_collector()
-    print(collector_ces.difference(ccstar_ces))
-   
+    inconsistent_ces = collector_ces.difference(ccstar_ces)
+    
+    msg = "Collecttor and Topology ces are consistent for ccstar hosted CEs."
+    if inconsistent_ces:
+        msg = "The following CEs are in the collector but not active in topology:\n%s" %",".join(inconsistent_ces)
+
+    print("%s|count=%d" % (msg, len(inconsistent_ces)))
+
+    if inconsistent_ces:
+        sys.exit(STATE_CRITICAL)
+
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as exc:
+        print("Exception occcurred when running probe: %s" % str(exc))
+        sys.exit(STATE_UNKNOWN) 
