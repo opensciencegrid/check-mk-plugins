@@ -31,7 +31,7 @@ def main():
         coll = htcondor.Collector(args.collector)
         schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
         schedd = htcondor.Schedd(schedd_ad)
-        jobs = schedd.xquery(requirements='RoutedJob == TRUE', projection=job_attrs)
+        jobs = schedd.xquery(constraint='RoutedJob == TRUE', projection=job_attrs)
     except IOError as e:
         # Connection failed
         states.append(STATE_CRITICAL)
@@ -114,25 +114,47 @@ def main():
     if len(entry_attr) > 0:
         try:
             for attr in entry_attr:
-                resource_name = attr['Name'].split("@")[0]
-                max_held = attr['GlideinConfigPerEntryMaxHeld']
-                factory_held = attr['GlideinMonitorTotalStatusHeld']
+                try:
+                    resource_name = attr['Name'].split("@")[0]
+                except KeyError as e:
+                    messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
+                    states.append(STATE_WARNING)
+                    resource_name = ''
+                try:
+                    max_held = attr['GlideinConfigPerEntryMaxHeld']
+                except KeyError as e:
+                    messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
+                    states.append(STATE_WARNING)
+                    max_held = float('inf')
+                try:
+                    factory_held = attr['GlideinMonitorTotalStatusHeld']
+                except KeyError as e:
+                    messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
+                    states.append(STATE_WARNING)
+                    factory_held = 0
                 stats['factory_held'] += factory_held
-                req_idle = attr['GlideinMonitorTotalRequestedIdle']
-                req_max = attr.get('GlideinMonitorTotalRequestedMaxGlideins', 0)
+                try:
+                    req_idle = attr['GlideinMonitorTotalRequestedIdle']
+                except KeyError as e:
+                    messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
+                    states.append(STATE_WARNING)
+                    req_idle = 0
+                try:
+                    req_max = attr.get('GlideinMonitorTotalRequestedMaxGlideins', 0)
+                except KeyError as e:
+                    messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
+                    states.append(STATE_WARNING)
+                    req_max = 0
                 if not req_idle and req_max and not stats['running']:
                     messages.append("max glideins requested but no requested idle")
                     states.append(STATE_WARNING)
                 if max_held:
                     if not isinstance(max_held, (int,long,float)): #max_held must be a number
                         messages.append("GlideinConfigPerEntryMaxHeld not valid in resource " + resource_name)
-                        #print (messages)
+                        #print (messages)                        
                         states.append(STATE_WARNING)
                     else:
                         (states, messages) = factory_entry_attr_check(stats, max_held, factory_held, req_idle, req_max, resource_name, messages, states)
-        except KeyError as e:
-            messages.append("Attribute %s not available in factory output for entry %s. " % (str(e), resource_name))
-            states.append(STATE_WARNING) 
         except Exception as e:
             messages.append(str(e))
             states.append(STATE_WARNING)
