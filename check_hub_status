@@ -1,0 +1,45 @@
+#!/usr/bin/python3
+
+import argparse
+import requests
+import json
+
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--url', dest='url', type=str,
+                        help='The url of the status page')
+    parser.add_argument('--headers', dest='headers',
+                        default='{"accept": "application/json"}',
+                        #action='append',
+                        help='The headers of the status page. Default value \'{"accept": "application/json"}\'')
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+    url = args.url
+    #headers = {
+    #    'accept': 'application/json',
+    #}
+    #print (args.headers)
+    headers = json.loads(args.headers)
+    resp = requests.get(url, headers=headers)
+    json_page = json.loads(resp.content.decode('ascii'))
+    hub_status = json_page["status"]
+    print (hub_status)
+    if hub_status == 'healthy':
+        return STATE_OK
+    else:
+        return STATE_CRITICAL
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print('Error (uncaught exception): %s' % str(exc))
+        sys.exit(STATE_CRITICAL)
