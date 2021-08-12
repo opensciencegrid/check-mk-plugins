@@ -3,6 +3,7 @@
 import argparse
 import requests
 import json
+import sys
 
 STATE_OK = 0
 STATE_WARNING = 1
@@ -23,23 +24,46 @@ def parse_args():
 def main():
     args = parse_args()
     url = args.url
+    states = [STATE_OK]
+    messages = []
     #headers = {
     #    'accept': 'application/json',
     #}
-    #print (args.headers)
     headers = json.loads(args.headers)
-    resp = requests.get(url, headers=headers)
-    json_page = json.loads(resp.content.decode('ascii'))
-    hub_status = json_page["status"]
-    print (hub_status)
-    if hub_status == 'healthy':
-        return STATE_OK
-    else:
-        return STATE_CRITICAL
+    try:
+        resp = requests.get(url, headers=headers)
+        #print (resp.status_code)
+        json_page = json.loads(resp.content.decode('ascii'))
+        #print (json_page)
+        if resp.status_code == 200:
+            try:
+    	        hub_status = json_page["status"]
+    	        messages.append("Hub status: " + hub_status)
+    	        if hub_status != 'healthy':
+                    messages.append("Hub not healty")
+                    states.append(STATE_CRITICAL)
+            except KeyError as e:
+                messages.append("Error: Key "+ str(e) + " not found in the page")
+                messages.append("Page content: " + str(json_page)[:1000])
+                states.append(STATE_CRITICAL)
+        else:
+            messages.append("Page request status code: %d" % resp.status_code)
+            messages.append("Page content: " + str(json_page)[:1000])
+            states.append(STATE_CRITICAL)
+
+    except requests.RequestException as e:
+        messages.append("Failed to request the status page: " + str(e))
+        states.append(STATE_CRITICAL)
+    state = max(states)
+    if state > STATE_OK:
+        messages.append("Please verify the url: %s, and headers: %s" % ( url, headers))
+    message = '. '.join(messages)
+    print(message)
+    sys.exit(state)
 
 if __name__ == '__main__':
     try:
         main()
-    except Exception as exc:
-        print('Error (uncaught exception): %s' % str(exc))
+    except Exception as e:
+        print('Error (uncaught exception): %s' % str(e))
         sys.exit(STATE_CRITICAL)
