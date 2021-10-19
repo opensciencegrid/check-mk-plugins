@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+
+from urllib.request import urlopen
+from xml.etree.ElementTree import parse
+import xml.etree.ElementTree as ET
+import os
+import urllib
+import re
+import sys
+
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def get_ce_resources_with_fqdns_and_services(resourcegroup):
+    resources = resourcegroup.findall("./Resources/Resource")
+    res_tuples = [
+        (res, res.find("./FQDN").text.strip(), res.findall("./Services/Service"))
+        for res in resources
+        if res.find("./FQDN") is not None and res.find("./Services/Service") is not None
+    ]
+    for res_tuple in res_tuples:
+        if [svc for svc in res_tuple[2]]:
+            yield res_tuple
+
+def get_tree(params):
+    return ET.fromstring(
+        os.popen(
+            "curl -Ls 'https://topology.opensciencegrid.org/rgsummary/xml?%s'" %  params 
+        ).read()
+    )
+
+###############################################################################################
+# This method takes in 5 args. 
+# params          : The link from which the fqdns are to be extracted
+# start, end      : The string limits within the which the necessary data in config file resides
+# patstart, patend: The string bounds based on which the data is to be parsed
+#
+# returns a list of all the fqdns in the config repo
+################################################################################################
+
+def get_set_of_fqdn(params, start, end, patstart, patend):
+    f = urllib.request.urlopen("https://raw.githubusercontent.com/cvmfs-contrib/config-repo/master/etc/cvmfs/" + params)
+    myfile = f.read().decode("utf-8")
+    check_mk = set()
+    for s in myfile[myfile.find(start)+len(start):myfile.find(end, myfile.find(start)+len(start))].split(";"):
+        check_mk.add(re.search("%s(.*)%s" % (patstart, patend), s).group(1))
+    return sorted(check_mk)
+    
+
+def main():
+    states = [STATE_OK]
+    messages = []
+
+    prod_tree = get_tree("gridtype=on&gridtype_1=on&active=on&active_value=1&service=on&service_156=on&service_147=on")
+    caches_topology = set()
+    for resourcegroup in prod_tree.findall("./ResourceGroup"):
+        for resource, fqdn, services in get_ce_resources_with_fqdns_and_services(resourcegroup):
+            caches_topology.add(fqdn)
+
+    start_cache = 'CVMFS_EXTERNAL_URL=\"'
+    start_ncache = 'CVMFS_EXTERNAL_URL=\"$CVMFS_EXTERNAL_URL;'
+    end_cache = '\"'  
+    
+    params = "domain.d/osgstorage.org.conf"
+    caches_config = get_set_of_fqdn(params, start_cache, end_cache, "http://", ":") + get_set_of_fqdn(params, start_ncache, end_cache, "http://", ":")
+
+    params = "config.d/ligo.osgstorage.org.conf"
+    caches_config = caches_config + get_set_of_fqdn(params, start_cache, end_cache, "https://", ":") + get_set_of_fqdn(params, start_ncache, end_cache, "https://", ":")
+   
+    caches_config_repo = set()
+    [caches_config_repo.add(n) for n in caches_config if n not in caches_config_repo]  
+
+    if(len(caches_topology.difference(caches_config_repo)) > 0 or len(caches_config_repo.difference(caches_topology)) > 0):
+         states.append(STATE_CRITICAL)
+
+    messages.append('The following caches are in topology but not in config-repo:\n%s\n' % (', '.join(sorted(caches_topology.difference(caches_config_repo)))))
+    messages.append('The following caches are in config-repo but not in topology:\n%s' % (', '.join(sorted(caches_config_repo.difference(caches_topology)))))
+    message = ''.join(messages)
+    print(message)
+
+    sys.exit(max(states))
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print("Exception occcurred when running probe: %s" % str(exc))
+        sys.exit(STATE_CRITICAL)
