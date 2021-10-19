@@ -146,7 +146,7 @@ def main():
                     states.append(STATE_WARNING)
                     req_max = 0
                 if not req_idle and req_max and not stats['running']:
-                    messages.append("max glideins requested but no requested idle")
+                    messages.append("%d max glideins requested but no requested idle" % attr.get('GlideinMonitorTotalRequestedMaxGlideins', 0))
                     states.append(STATE_WARNING)
                 if max_held:
                     if not isinstance(max_held, (int,long,float)): #max_held must be a number
