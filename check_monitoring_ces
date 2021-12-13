@@ -74,9 +74,12 @@ def main():
     if(len(topology_diff) > 0):
          states.append(STATE_CRITICAL)
  
-    messages.append("Hosts in topology and not in monitoring: \n")
-    messages.append(",".join(topology_diff))
-    messages.append(" | count = %d" % len(topology_diff))
+    messages.append("Hosts in topology and not in monitoring: ")
+    if topology_diff:
+        messages.append(",".join(topology_diff))
+    else:
+        messages.append("None")
+    messages.append("\n| count = %d" % len(topology_diff))
     print("".join(messages)) 
     sys.exit(max(states))
 

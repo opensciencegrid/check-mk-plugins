@@ -70,10 +70,16 @@ def main():
     if(len(topology_diff) > 0 or len(monitoring_diff)>0):
          states.append(STATE_CRITICAL)
  
-    messages.append("Hosts in topology and not in monitoring: \n")
-    messages.append(",".join(topology_diff))
-    messages.append(".\nHosts in monitoring and not in topology: \n")
-    messages.append(",".join(monitoring_diff))
+    messages.append("Hosts in topology and not in monitoring: ")
+    if topology_diff:
+    	messages.append(",".join(topology_diff))
+    else:
+        messages.append("None")
+    messages.append(". Hosts in monitoring and not in topology: ")
+    if monitoring_diff:
+        messages.append(",".join(monitoring_diff))
+    else:
+        messages.append("None")
     messages.append("\n| topology_diff = %d "% len(topology_diff) + "monitoring_diff = %d \n" % len(monitoring_diff))
     
 
