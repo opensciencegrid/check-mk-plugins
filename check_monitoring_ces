@@ -42,7 +42,10 @@ def get_monitoring_hosts(params):
      hosts = set();
      url = "https://monitoring.opensciencegrid.org/osgmon/check_mk/webapi.py?%s" % params
      response = urlopen(url)
-     s = response.read().decode('utf-8').replace("u\'}","u\"}").replace("u\':","u\":").replace("u\',","u\",").replace("u\'", "\"").replace("\'","\"").replace("None","\"None\"").replace("True", "\"True\"")
+     s = response.read().decode('utf-8').replace("u\'}","u\"}").replace("u\':","u\":") \
+                                        .replace("u\',","u\",").replace("u\'", "\"") \
+                                        .replace("\'","\"").replace("None","\"None\"") \
+                                        .replace("True", "\"True\"")
      data_json = json.loads(s)
      
      for host in data_json['result']:
@@ -62,10 +65,12 @@ def main():
             if(is_hosted_fqdn(fqdn)):
                 topology_hosts.add(fqdn)
     
-    access = open('secrete.txt', 'r')
+    OMD_ROOT = os.environ.get('OMD_ROOT')
+    secret_filepath = OMD_ROOT + "/var/check_mk/web/automation/automation.secret"
+    access = open(secret_filepath,'r')
+    secret_line = access.readlines()
     action = "action=get_all_hosts"
-    user_pass = access.readlines()
-    password = action + str(user_pass[0][:-1])
+    password = action + "&_username=automation&secret=" + secret_line
     monitoring_hosts = get_monitoring_hosts(password)
 
     topology_diff = topology_hosts.difference(monitoring_hosts)
