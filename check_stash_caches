@@ -36,14 +36,10 @@ def get_tree(params):
 def get_monitoring_caches(params):
 
      caches = set();
-     url = "https://monitoring.opensciencegrid.org/osgmon/check_mk/webapi.py?%s" % params
+     url = "http://127.0.0.1:5001/osgmon/check_mk/webapi.py?%s" % params
      response = urlopen(url)
-     s = response.read().decode('utf-8').replace("u\'}","u\"}").replace("u\':","u\":") \
-                                        .replace("u\',","u\",").replace("u\'", "\"") \
-                                        .replace("\'","\"").replace("None","\"None\"") \
-                                        .replace("True", "\"True\"")
+     s = response.read().decode('utf-8')
      data_json = json.loads(s)
-     
      for host in data_json['result']:
          if(data_json['result'][host]['path']=='stash-caches'):
               caches.add(host)
@@ -63,9 +59,9 @@ def main():
     OMD_ROOT = os.environ.get('OMD_ROOT')
     secret_filepath = OMD_ROOT + "/var/check_mk/web/automation/automation.secret"
     access = open(secret_filepath,'r')
-    secret_line = access.readlines()
+    secret_line = access.readlines()[0][:-1] #removing trailing '\n'
     action = "action=get_all_hosts"
-    password = action + "&_username=automation&secret=" + secret_line
+    password = action + "&_username=automation&_secret="+secret_line
     monitoring_caches = get_monitoring_caches(password)
 
     topology_diff = topology_caches.difference(monitoring_caches)
@@ -74,13 +70,12 @@ def main():
     if(len(topology_diff) > 0 or len(monitoring_diff)>0):
          states.append(STATE_CRITICAL)
  
-    messages.append("Hosts in topology and not in monitoring\n")
+    messages.append("Hosts in topology and not in monitoring: \n")
     messages.append(",".join(topology_diff))
-    messages.append(" | count = %d\n" % len(topology_diff))
-    
-    messages.append("Hosts in monitoring and not in topology\n")
+    messages.append(".\nHosts in monitoring and not in topology: \n")
     messages.append(",".join(monitoring_diff))
-    messages.append(" | count = %d" % len(monitoring_diff))
+    messages.append("\n| topology_diff = %d "% len(topology_diff) + "monitoring_diff = %d \n" % len(monitoring_diff))
+    
 
     print("".join(messages)) 
     sys.exit(max(states))

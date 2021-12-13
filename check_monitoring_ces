@@ -40,14 +40,10 @@ def is_hosted_fqdn(fqdn):
 def get_monitoring_hosts(params):
 
      hosts = set();
-     url = "https://monitoring.opensciencegrid.org/osgmon/check_mk/webapi.py?%s" % params
+     url = "http://127.0.0.1:5001/osgmon/check_mk/webapi.py?%s" % params
      response = urlopen(url)
-     s = response.read().decode('utf-8').replace("u\'}","u\"}").replace("u\':","u\":") \
-                                        .replace("u\',","u\",").replace("u\'", "\"") \
-                                        .replace("\'","\"").replace("None","\"None\"") \
-                                        .replace("True", "\"True\"")
+     s = response.read().decode('utf-8')
      data_json = json.loads(s)
-     
      for host in data_json['result']:
          if(is_hosted_fqdn(host)):
               hosts.add(host)
@@ -68,9 +64,9 @@ def main():
     OMD_ROOT = os.environ.get('OMD_ROOT')
     secret_filepath = OMD_ROOT + "/var/check_mk/web/automation/automation.secret"
     access = open(secret_filepath,'r')
-    secret_line = access.readlines()
+    secret_line = access.readlines()[0][:-1]
     action = "action=get_all_hosts"
-    password = action + "&_username=automation&secret=" + secret_line
+    password = action + "&_username=automation&_secret=" + secret_line
     monitoring_hosts = get_monitoring_hosts(password)
 
     topology_diff = topology_hosts.difference(monitoring_hosts)
@@ -78,7 +74,7 @@ def main():
     if(len(topology_diff) > 0):
          states.append(STATE_CRITICAL)
  
-    messages.append("Hosts in topology and not in monitoring\n")
+    messages.append("Hosts in topology and not in monitoring: \n")
     messages.append(",".join(topology_diff))
     messages.append(" | count = %d" % len(topology_diff))
     print("".join(messages)) 
