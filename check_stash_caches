@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+
+from urllib.request import urlopen
+from xml.etree.ElementTree import parse
+import xml.etree.ElementTree as ET
+import os
+import urllib
+import re
+import sys
+import json
+
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def get_ce_resources_with_fqdns_and_services(resourcegroup):
+    resources = resourcegroup.findall("./Resources/Resource")
+    
+    res_tuples = [
+        (res, res.find("./FQDN").text.strip(), res.findall("./Services/Service"))
+        for res in resources
+        if res.find("./FQDN") is not None and res.find("./Services/Service") is not None and res.find("./Services/Service/Name").text.strip()=="XRootD cache server"
+    ]
+    for res_tuple in res_tuples:
+        if [svc for svc in res_tuple[2]]:
+            yield res_tuple
+
+def get_tree(params):
+    return ET.fromstring(
+        os.popen(
+            "curl -Ls 'https://topology.opensciencegrid.org/rgsummary/xml?%s'" %  params 
+        ).read()
+    )
+
+def get_monitoring_caches(params):
+
+     caches = set();
+     url = "https://monitoring.opensciencegrid.org/osgmon/check_mk/webapi.py?%s" % params
+     response = urlopen(url)
+     s = response.read().decode('utf-8').replace("u\'}","u\"}").replace("u\':","u\":").replace("u\',","u\",").replace("u\'", "\"").replace("\'","\"").replace("None","\"None\"").replace("True", "\"True\"")
+     data_json = json.loads(s)
+     
+     for host in data_json['result']:
+         if(data_json['result'][host]['path']=='stash-caches'):
+              caches.add(host)
+     return caches
+
+
+def main():
+    states = [STATE_OK]
+    messages = []
+
+    prod_tree = get_tree("gridtype=on&gridtype_1=on&active=on&active_value=1&service=on&service_156=on&service_147=on")
+    topology_caches = set()
+    for resourcegroup in prod_tree.findall("./ResourceGroup"):
+        for resource, fqdn, services in get_ce_resources_with_fqdns_and_services(resourcegroup):
+            topology_caches.add(fqdn)
+
+    access = open('secrete.txt', 'r')
+    action = "action=get_all_hosts"
+    user_pass = access.readlines()
+    password = action + str(user_pass[0][:-1])
+    monitoring_caches = get_monitoring_caches(password)
+
+    topology_diff = topology_caches.difference(monitoring_caches)
+    monitoring_diff = monitoring_caches.difference(topology_caches)
+    
+    if(len(topology_diff) > 0 or len(monitoring_diff)>0):
+         states.append(STATE_CRITICAL)
+ 
+    messages.append("Hosts in topology and not in monitoring\n")
+    messages.append(",".join(topology_diff))
+    messages.append(" | count = %d\n" % len(topology_diff))
+    
+    messages.append("Hosts in monitoring and not in topology\n")
+    messages.append(",".join(monitoring_diff))
+    messages.append(" | count = %d" % len(monitoring_diff))
+
+    print("".join(messages)) 
+    sys.exit(max(states))
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print("Exception occcurred when running probe: %s" % str(exc))
+        sys.exit(STATE_CRITICAL)
