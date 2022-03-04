@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import sys
+import htcondor
+import os
+import time
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+    schedd_list = []
+    last_heard_from = 0
+    last_heard_schedd = ''
+    now = time.time()
+    perf_data = ''
+
+    schedd_attrs = [
+        'Name',
+        'MyCurrentTime',
+        'LastHeardFrom',
+        'MonitorSelfTime'
+    ]
+
+    try:
+        coll = htcondor.Collector(args.collector)
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        #print (schedd_ad)
+        now = time.time()
+        schedd_list = coll.query(htcondor.htcondor.AdTypes.Schedd, projection=schedd_attrs)
+        for schedd in schedd_list:
+            # Find the most recently heard schedd
+            if schedd['LastHeardFrom'] >= last_heard_from:
+                last_heard_from = schedd['LastHeardFrom']
+                last_heard_schedd = schedd['Name']
+        age = now - last_heard_from
+        # Check if last heard from within 6 hours
+        if age < 21600:
+            messages.append('Last heard from %s %f seconds ago, within 6 hours.' % (last_heard_schedd, age))        
+        else:
+            messages.append('Last heard from %s %f seconds ago, over 6 hours.' % (last_heard_schedd, age))
+            states.append(STATE_CRITICAL)
+    except IOError as e:
+        # Connection failed
+        states.append(STATE_CRITICAL)
+        messages.append(str(e))
+    except Exception as e:
+        # Other error
+        states.append(STATE_UNKNOWN)
+        messages.append(str(e))
+
+    perf_data = ' |last_heard_from=%f ' % age
+   
+    state = max(states)
+    message = ', '.join(messages) 
+    #if not message:
+    #    message = 'Scheduler is up.'
+
+    print(message + perf_data)
+    sys.exit(state)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('collector')
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

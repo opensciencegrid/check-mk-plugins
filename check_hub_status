@@ -31,7 +31,7 @@ def main():
     #}
     headers = json.loads(args.headers)
     try:
-        resp = requests.get(url, headers=headers)
+        resp = requests.get(url, headers=headers, timeout=10)
         #print (resp.status_code)
         json_page = json.loads(resp.content.decode('ascii'))
         #print (json_page)

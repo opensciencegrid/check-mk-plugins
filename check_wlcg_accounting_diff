@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+# Author: Dan Bradley <dan@physics.wisc.edu>
+# Use as you wish.
+
+#import urllib
+import json
+import sys
+import datetime
+import os
+import argparse
+import getpass
+import socket
+import locale
+import time
+import ssl
+import requests
+
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Download the latest WLCG accounting data and report the delta.")
+    parser.add_argument('--state-dir',required=True,dest="state_dir")
+    parser.add_argument('--email-to',dest="email_to")
+    parser.add_argument('--site',required=True)
+    #parser.add_argument('--site-name',dest="site_name")
+    parser.add_argument('--APEL',required=True)
+    return parser.parse_args()
+
+def commanum(num):
+    locale.setlocale(locale.LC_ALL, 'en_US')
+    return locale.format("%d", num, grouping=True)
+
+def SendEmail(email_from,email_to,subject,msg):
+    import smtplib
+    from email.mime.text import MIMEText
+
+    emsg = MIMEText(msg)
+
+    emsg['Subject'] = subject
+    emsg['From'] = email_from
+    emsg['To'] = email_to
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail(email_from, email_to.split(","), emsg.as_string())
+    s.quit()
+
+def PrevMonth(now):
+    prev_month = now - datetime.timedelta(days=now.day+1)
+    return prev_month
+
+def gracc_index_count(site):
+    # Retrives the number of records with EndTime during yesterday in gracc.osg.summary index
+    # EndTime:[now-1d/d TO now-1d/d] means 00:00:00 to 23:59:59 of yesterday 
+    r = requests.get('https://gracc.opensciencegrid.org/q/gracc.osg.summary/_count?q=(OIM_ResourceGroup:' + site +') AND (EndTime:[now-1d/d TO now-1d/d])')
+    data = json.loads(r.text)
+    count = data['count']
+    yesterday_str = str(datetime.date.today() - datetime.timedelta(days=1))
+    if count >= 0:
+        messages.append ('GRACC received ' +str(count) +' records in gracc-osg-summary on ' + yesterday_str +'.')
+    else:
+        messages.append ('Invalid output from GRACC.')
+        states.append (STATE_UNKNOWN)
+    return count
+
+def wlcg_acc_diff(state_dir, site, APEL):
+    #ssl._create_default_https_context = ssl._create_unverified_context
+    now = datetime.date.today()
+    STATE_FNAME = state_dir + "/wlcg_accounting_" + site + ".json"
+    last_update = 0
+    state = {}
+    delta = 0
+    changed = False
+    msg = ""
+    if not os.path.exists(state_dir):
+        os.makedirs(state_dir)
+
+    if os.path.exists(STATE_FNAME):
+        last_update = os.stat(STATE_FNAME).st_mtime
+        state = json.loads(file(STATE_FNAME,"r").read())
+
+    year = str(now.year)
+    month = str(now.month)
+
+    url = 'https://accounting-support.egi.eu/custom_xml.php?&query=normelap_processors&option=SITE&optval=' + site + '&sYear=' + year + '&sMonth=' + month + '&eYear=' + year + '&eMonth=' + month + '&yrange=VO&xrange=DATE&groupVO=custom-cms&localJobs=onlyinfrajobs&tree=TIER2'
+    # HACK: do not verify SSL certificates, because https://accounting-support.egi.eu is failing to verify.
+    from requests.packages.urllib3.exceptions import InsecureRequestWarning
+    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+    r = requests.get(url, verify=False)
+
+    data = json.loads(r.text)
+    if data:
+        if data[0]["id"] != "cms" and data[0]["id"] != "atlas":
+            states.append(STATE_UNKNOWN)
+            messages.append("Unexpected VO id in data (was expecting 'cms' or 'atlas'), json data:" + str(data) + ".")
+            #sys.exit(STATE_UNKNOWN)
+
+        total_usage = data[0]["Total"]
+        key = year + "-" + ("%02d" % (int(month)))
+        if not state.has_key(key):
+            state[key] = 0
+        delta = total_usage - state[key]
+        state[key] = total_usage
+
+        if delta:
+            changed = True
+            #messages.append ("WLCG increment for " + key + ": " + commanum(delta) + " = " + str(APEL) + " HS06 * " + commanum(int(delta/APEL)) + " wall hours.")
+
+    last_update_str = time.strftime("%Y-%m-%d",time.localtime(last_update))
+    #messages.append ("Changes in WLCG accounting data since " + last_update_str + ":")
+    if changed:
+        #messages.append ("Changes in WLCG accounting data since " + last_update_str + ":")
+        messages.append ("WLCG increment for " + key + " since " + last_update_str +" : " + commanum(delta) + " = " + str(APEL) + " HS06 * " + commanum(int(delta/APEL)) + " wall hours.")
+        F = file(STATE_FNAME + ".new","w")
+        json.dump(state,F)
+        F.close()
+        os.rename(STATE_FNAME + ".new",STATE_FNAME)
+    else:
+        messages.append  ("Changes in WLCG accounting data since " + last_update_str + ": 0.")
+    return delta
+
+def main():
+    #locale.setlocale(locale.LC_ALL, 'en_US')
+    args = parse_args()
+    global states 
+    states = [STATE_OK]
+    global messages 
+    messages = []
+    
+    APEL = float(args.APEL)
+    gracc_rec_count = gracc_index_count(args.site)
+    delta = wlcg_acc_diff(args.state_dir, args.site, APEL)
+    if (gracc_rec_count == 0):
+        if (delta == 0):
+            messages.append("No accounting records sent to both GRACC and WLCG")
+        else:
+            messages.append("No accounting records sent to GRACC, but records sent to WLCG. Please check GRACC accounting.")
+            state.append(STATE_WARNING)
+    else:
+        if (delta == 0):
+            messages.append("No accounting records sent to WLCG, but records sent to GRACC. Please check WLCG accounting.")
+            states.append(STATE_CRITICAL)
+        else:
+            messages.append("Accounting records sent to both GRACC and WLCG")
+
+    perf_data = " |increment=%d" % int(delta/APEL)
+    state = max(states)
+    message = ' '.join(messages)
+    print(message + perf_data)
+    sys.exit(state)
+
+if __name__ == "__main__":
+    # Run script as main
+    main()

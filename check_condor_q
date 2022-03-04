@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+import argparse
+import sys
+import htcondor
+import os
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+def main():
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+    jobs = []
+
+    job_attrs = [
+        'JobStatus',
+        'ServerTime',
+        'EnteredCurrentStatus',
+        'GridJobStatus',
+        'GridJobId',
+        'HoldReasonCode',
+    ]
+
+    try:
+        coll = htcondor.Collector(args.collector)
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedd = htcondor.Schedd(schedd_ad)
+        jobs = schedd.xquery(constraint='RoutedJob == TRUE', projection=job_attrs)
+    except IOError as e:
+        # Connection failed
+        states.append(STATE_CRITICAL)
+        messages.append(str(e))
+    except Exception as e:
+        # Other error
+        states.append(STATE_UNKNOWN)
+        messages.append(str(e))
+
+    #perf_data = ' |running=%(running)d idle=%(idle)d held=%(held)d factory_held=%(factory_held)d' % stats
+    #perf_data += ' req_idle=' + str(req_idle)
+    #perf_data += ' req_max=' + str(req_max)
+   
+    state = max(states)
+    message = ', '.join(messages) 
+    if not message:
+        message = 'Scheduler is up.'
+
+    #print(message + perf_data)
+    print(message)
+    sys.exit(state)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('collector')
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    # Run script as main
+    main()
