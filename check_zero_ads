@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import sys
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime, date, time, timezone
+import htcondor
+
+DEFAULT_REMOVE = ['gfactory-2.opensciencegrid.org']
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+
+def get_ce_fqdns_from_factory(factory_fqdn):
+    entry_info = set()
+    coll = htcondor.Collector(factory_fqdn)
+    entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="Scheduler"')
+    return entries
+
+def zero_job_adds_valid(entry):
+    d = dict(entry)
+    totalJobAds = d['TotalJobAds']
+    if totalJobAds == 0:
+       return d['Name']
+    return ''
+
+def main():    
+    entries = get_ce_fqdns_from_factory("gfactory-2.opensciencegrid.org")
+    not_valid_entries =  []
+
+    for i,entry in enumerate(entries):
+        name = zero_job_adds_valid(entry)
+        if len(name) > 0:
+            not_valid_entries.append(name)
+    
+    for entry in DEFAULT_REMOVE:
+        not_valid_entries.remove(entry)
+
+    msg = "All entries  in gwms have more than 0 total job ads"
+    if not_valid_entries:
+        msg = "The following entries in gwms have 0 total job ads:\n%s" %",".join(not_valid_entries)
+    
+    print("%s | count=%d" % (msg, len(not_valid_entries)))
+
+    if not_valid_entries:
+        sys.exit(STATE_CRITICAL)    
+    else:
+        sys.exit(STATE_OK)
+        
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print("Exception occcurred when running probe: %s" % str(exc))
+        sys.exit(STATE_UNKNOWN) 

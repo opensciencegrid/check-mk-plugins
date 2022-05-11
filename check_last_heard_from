@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import sys
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime, date, time, timezone
+import htcondor
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+
+def get_ce_fqdns_from_factory(factory_fqdn):
+    entry_info = set()
+    coll = htcondor.Collector(factory_fqdn)
+    entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="glidefactory"') #-const -wide
+    return entries
+
+def last_heard_from_valid(entry):
+    d = dict(entry)
+    epoch = d['LastHeardFrom']
+    lhf = datetime.utcfromtimestamp(epoch)#.strftime('%Y-%m-%d %H:%M:%S')
+    now  = datetime.now(timezone.utc)
+    diff_hrs = (now.replace(tzinfo=None) - lhf.replace(tzinfo=None)).seconds // 3600
+    if diff_hrs > 6:
+       return d['Name']
+    return ''
+
+def main():   
+    args = parse_args() 
+    entries = get_ce_fqdns_from_factory("gfactory-2.opensciencegrid.org")
+    not_valid_entries =  []
+
+    for entry in entries:
+        name = last_heard_from_valid(entry)
+        if len(name) > 0:
+            not_valid_entries.append(name)
+
+    if(len(entries) < args.threshold):
+        print("Number of entries fewer than expected | count=%d" % len(entries))
+        sys.exit(STATE_CRITICAL)
+
+    msg = "All entries  in gwms have been heard from in the past 6 hrs"
+    if not_valid_entries:
+        msg = "The following entries in gwms have not been heard from in the past 6 hrs:\n%s" %",".join(not_valid_entries)
+    
+    print("%s | count=%d" % (msg, len(not_valid_entries)))
+
+    if not_valid_entries:
+        sys.exit(STATE_CRITICAL)    
+    else:
+        sys.exit(STATE_OK)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--threshold', dest='threshold', type=int, default=100, required=False)
+    return parser.parse_args()
+        
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print("Exception occcurred when running probe: %s" % str(exc))
+        sys.exit(STATE_UNKNOWN) 
