@@ -12,7 +12,7 @@ STATE_OK = 0
 STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
-
+out_messages = []
 def executeCommandBD(com):
         with open('/tmp/out1.txt','w+') as fout:
                 with open('/tmp/err1.txt','w+') as ferr:
@@ -73,9 +73,11 @@ serialized_token = token.serialize(issuer=issuerToken)
 e = executeCommandBD("curl -i -X 'PUT' --upload-file "+ filepath  +" -H 'Authorization: Bearer " +serialized_token.decode()+"' -k https://stash-xrd.osgconnect.net:1094/ospool/monitoring/PROTECTED/"+filename)
 respWriteFileOrigin = checkOuput(e)
 if (respWriteFileOrigin != "200"):
-	print("Error writing origin "+respWriteFileOrigin+"; ") 
+	#print("Error writing origin "+respWriteFileOrigin) 
+        out_messages.append("Error writing origin "+respWriteFileOrigin)
 else:
-	print("file on origin "+filename+"; ")
+	#print("file on origin "+filename)
+        out_messages.append("file on origin "+filename)
 
 
 # reading to the cache
@@ -89,10 +91,11 @@ serialized_token = token.serialize(issuer=issuerToken)
 e = executeCommandBD("curl -i  -H 'Authorization: Bearer " +serialized_token.decode()+"' -k "+sys.argv[1]+":8444/ospool/monitoring/PROTECTED/"+ filename)
 respReadCached = checkOuput(e)
 if (respReadCached != 200):
-	print("Error reading cache "+respReadCached +"; ") 
+	#print("Error reading cache "+respReadCached) 
+        out_messages.append("Error reading cache "+respReadCached)
 else:
-	print("file on origin "+filename) +"; "
-
+	#print("file on origin "+filename)
+        out_messages.append("file on origin "+filename)
 
 # delete on local file system
 executeCommandBD("rm "+filepath)
@@ -108,10 +111,14 @@ serialized_token = token.serialize(issuer=issuerToken)
 e = executeCommandBD("curl -i -X 'DELETE' -H 'Authorization: Bearer " +serialized_token.decode()+"' -k https://stash-xrd.osgconnect.net:1094/ospool/monitoring/PROTECTED/"+filename)
 respDeleteFileOrigin = checkOuput(e)
 if (respDeleteFileOrigin != "200"):
-	print("Error delete origin "+respDeleteFileOrigin) 
+	#print("Error delete origin "+respDeleteFileOrigin) 
+        out_messages.append("Error delete origin "+respDeleteFileOrigin)
 else:
-	print("file delete origin "+filename)
+	#print("file delete origin "+filename)
+        out_messages.append("file delete origin "+filename)
 
+out_message = "; ".join(out_messages)
+print (out_message)
 if(respDeleteFileOrigin == "200" and respWriteFileOrigin == "200" and respReadCached == "200"):
 	 sys.exit(STATE_OK)
 else:
