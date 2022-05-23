@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+
+import subprocess
+import os
+import sys
+
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+out_messages = []
+def executeCommandBD(com):
+        with open('/tmp/out1.txt','w+') as fout:
+                with open('/tmp/err1.txt','w+') as ferr:
+                        #print(com)
+                        out=subprocess.call([com],stdout=fout,stderr=ferr,timeout=500,shell=True)
+                        fout.seek(0)
+                        output=fout.read()
+                        ferr.seek(0)
+                        errors = ferr.read()
+                        return output
+
+def checkOuput(data):
+        try:
+                lines = data.splitlines()
+                for l in lines:
+                        if (isinstance(l,str) == True ):
+                                if(len(l) > 1):
+                                        if(l[0] != '#' and l.find("shoveler_queue_size") != -1 ):
+                                              data = l.split(' ')
+                                              qsize = int(data[1])
+                                              if(qsize ==  0):
+                                                     return STATE_OK
+                                              elif(qsize > 250 and qsize < 500):
+                                                     return STATE_WARNING
+                                              else:
+                                                     return STATE_CRITICAL    
+                return STATE_CRITICAL
+        except Exception as e:
+                return STATE_CRITICAL
+
+host = sys.argv[1]
+e = executeCommandBD("curl -i http://"+host+":9667/metrics")
+print(checkOuput(e))
+sys.exit(checkOuput(e))
