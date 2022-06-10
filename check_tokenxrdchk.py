@@ -22,17 +22,16 @@ def executeCommandBD(com):
                         output=fout.read()
                         ferr.seek(0)
                         errors = ferr.read()
-                        return output
+                        return errors
 
 def checkOuput(data):
         try:
+                print(data)
                 lines = data.splitlines()
                 for l in lines:
-                        if ( l.find('HTTP/1.1') != -1 ):
-                                data = l.split(' ')
-                                if((data[1] != "100") and (data[1] != "200")):
-                                        return "204"
-                return "200"
+                        if ( l.find('100%') != -1 ):
+                               return "200"
+                return "204"
         except:
                 return "204"
 
@@ -41,7 +40,7 @@ issuerToken = "https://osg-htc.org/monitoring"
 
 OMD_ROOT = os.environ.get('OMD_ROOT')
 #with open("/root/scitoken/pkm.key", "r") as file_pointer:
-with open(OMD_ROOT + "/etc/scitoken/pkm.key", "r") as file_pointer:
+with open("/root/1.key", "r") as file_pointer:
         private_key_contents = file_pointer.read()
 
 loaded_private_key = serialization.load_pem_private_key(
@@ -70,13 +69,14 @@ token.update_claims({"ver":"scitoken:2.0"});
 token.update_claims({"sub":"osgmon"});
 serialized_token = token.serialize(issuer=issuerToken)
 
-e = executeCommandBD("curl -i -X 'PUT' --upload-file "+ filepath  +" -H 'Authorization: Bearer " +serialized_token.decode()+"' -k https://stash-xrd.osgconnect.net:1094/ospool/monitoring/PROTECTED/"+filename)
+e = executeCommandBD("xrdcp -f "+ filepath  +" root://stash-xrd.osgconnect.net:1094//ospool/monitoring/PROTECTED/"+filename+"?authz=Bearer%20"+serialized_token.decode())
 respWriteFileOrigin = checkOuput(e)
+print(respWriteFileOrigin)
 if (respWriteFileOrigin != "200"):
-	#print("Error writing origin "+respWriteFileOrigin) 
+        print("Error writing origin "+respWriteFileOrigin) 
         out_messages.append("Error writing origin "+respWriteFileOrigin)
 else:
-	#print("file on origin "+filename)
+        print("file on origin "+filename)
         out_messages.append("file on origin "+filename)
 
 
@@ -88,17 +88,21 @@ token.update_claims({"ver":"scitoken:2.0"});
 token.update_claims({"sub":"osgmon"});
 serialized_token = token.serialize(issuer=issuerToken)
 
-e = executeCommandBD("curl -i  --output /dev/null  -H 'Authorization: Bearer " +serialized_token.decode()+"' -k "+sys.argv[1]+":8444/ospool/monitoring/PROTECTED/"+ filename)
+e = executeCommandBD("xrdcp -f root://stash-xrd.osgconnect.net:1094//ospool/monitoring/PROTECTED/"+filename+"?authz=Bearer%20"+serialized_token.decode()+" file")
 respReadCached = checkOuput(e)
+
 if (respReadCached != "200"):
-	#print("Error reading cache "+respReadCached) 
         out_messages.append("Error reading cache "+respReadCached)
 else:
-	#print("file on origin "+filename)
         out_messages.append("file on origin "+filename)
 
 # delete on local file system
 executeCommandBD("rm "+filepath)
+
+# random content
+with open('%s'%filepath, 'wb') as fout:
+        fout.write(os.urandom(0))
+
 
 # delete file on the origin
 token = scitokens.SciToken(loaded_private_key,key_id="071a")
@@ -108,11 +112,11 @@ token.update_claims({"ver":"scitoken:2.0"});
 token.update_claims({"sub":"osgmon"});
 serialized_token = token.serialize(issuer=issuerToken)
 
-e = executeCommandBD("curl -i -X 'DELETE' -H 'Authorization: Bearer " +serialized_token.decode()+"' -k https://stash-xrd.osgconnect.net:1094/ospool/monitoring/PROTECTED/"+filename)
+e = executeCommandBD("xrdcp -f "+ filepath  +" root://stash-xrd.osgconnect.net:1094//ospool/monitoring/PROTECTED/"+filename+"?authz=Bearer%20"+serialized_token.decode())
 respDeleteFileOrigin = checkOuput(e)
 if (respDeleteFileOrigin != "200"):
 	#print("Error delete origin "+respDeleteFileOrigin) 
-        out_messages.append("Error delete origin "+respDeleteFileOrigin)
+       out_messages.append("Error delete origin "+respDeleteFileOrigin)
 else:
 	#print("file delete origin "+filename)
         out_messages.append("file delete origin "+filename)
