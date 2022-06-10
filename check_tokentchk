@@ -88,7 +88,10 @@ token.update_claims({"ver":"scitoken:2.0"});
 token.update_claims({"sub":"osgmon"});
 serialized_token = token.serialize(issuer=issuerToken)
 
-e = executeCommandBD("curl -i  --output /dev/null  -H 'Authorization: Bearer " +serialized_token.decode()+"' -k "+sys.argv[1]+":8444/ospool/monitoring/PROTECTED/"+ filename)
+# delete on local file system
+executeCommandBD("rm "+filepath)
+
+e = executeCommandBD("curl -i  --output "+ filepath +"  -H 'Authorization: Bearer " +serialized_token.decode()+"' -k "+sys.argv[1]+":8444/ospool/monitoring/PROTECTED/"+ filename + " ; head -n 2 "+filepath)
 respReadCached = checkOuput(e)
 if (respReadCached != "200"):
 	#print("Error reading cache "+respReadCached) 
