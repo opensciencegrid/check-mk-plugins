@@ -26,10 +26,10 @@ def checkOuput(data):
                 for l in lines:
                         if (isinstance(l,str) == True ):
                                 if(len(l) > 1):
-                                        if(l[0] != '#' and l.find("shoveler_queue_size") != -1 ):
+                                        if(l[0] != '#' and l.find("shoveler_packets_received") != -1 ):
                                               data = l.split(' ')
                                               qsize = int(data[1])
-                                              print ("shovler_queue_size = %d" % qsize)
+                                              print ("shoveler_packets_received = %d" % qsize)
                                               if(qsize ==  0):
                                                      return STATE_OK
                                               elif(qsize > 250 and qsize < 500):
@@ -43,6 +43,6 @@ def checkOuput(data):
                 return STATE_CRITICAL
 
 host = sys.argv[1]
-e = executeCommandBD("curl --connection-timeout 10 -i http://"+host+":9667/metrics")
+e = executeCommandBD("curl --connection-timeout 10  -i http://"+host+":9667/metrics")
 #print(checkOuput(e))
 sys.exit(checkOuput(e))
