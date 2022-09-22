@@ -43,6 +43,6 @@ def checkOuput(data):
                 return STATE_CRITICAL
 
 host = sys.argv[1]
-e = executeCommandBD("curl --connection-timeout 10 -i http://"+host+":9667/metrics")
+e = executeCommandBD("curl -i http://"+host+":9667/metrics")
 #print(checkOuput(e))
 sys.exit(checkOuput(e))
