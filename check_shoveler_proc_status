@@ -28,7 +28,7 @@ def checkOuput(data):
                                 if(len(l) > 1):
                                         if(l[0] != '#' and l.find("shoveler_packets_received") != -1 ):
                                               data = l.split(' ')
-                                              qsize = int(data[1])
+                                              qsize = int(float(data[1]))
                                               print ("shoveler_packets_received = %d" % qsize)
                                               if(qsize ==  0):
                                                      return STATE_OK
