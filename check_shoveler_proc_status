@@ -3,6 +3,9 @@
 import subprocess
 import os
 import sys
+from os.path import exists
+import traceback
+
 
 STATE_OK = 0
 STATE_WARNING = 1
@@ -30,19 +33,44 @@ def checkOuput(data):
                                               data = l.split(' ')
                                               qsize = int(float(data[1]))
                                               print ("shoveler_packets_received = %d" % qsize)
-                                              if(qsize ==  0):
-                                                     return STATE_OK
-                                              elif(qsize > 250 and qsize < 500):
-                                                     return STATE_WARNING
-                                              else:
-                                                     return STATE_CRITICAL    
-                print ("shoveler_queue_size does not exist")
+                                              return qsize  
                 return STATE_CRITICAL
         except Exception as e:
                 print (e)
                 return STATE_CRITICAL
+try:
+        host = sys.argv[1]
+        delta = 10;
+        tmpCountFile = "/tmp/"+host+"provShoveler";
+        e = executeCommandBD("curl -i http://"+host+":9667/metrics")
+        #print(checkOuput(e))
+        procp = checkOuput(e)
+        if(procp == STATE_CRITICAL):
+                sys.exit(procp)
+        else:
+               file_exists = exists(tmpCountFile)
+               if(file_exists):
+                      f = open(tmpCountFile, "r+")
+                      oldprocsize = int(float(f.read()))
+                      f.seek(0)
+                      f.truncate(0) 
+                      print(str(procp)+"  "+str(oldprocsize))
+                      f.write(str(procp));
+                      f.close()
+                      if(abs(procp - oldprocsize) < delta):
+                              procp = STATE_CRITICAL;
+                      else:
+                              procp = STATE_OK;
+               else:
+                      f = open(tmpCountFile, "w")
+                      f.write(str(procp));
+                      f.close()
+                      procp = STATE_WARNING;
 
-host = sys.argv[1]
-e = executeCommandBD("curl -i http://"+host+":9667/metrics")
-#print(checkOuput(e))
-sys.exit(checkOuput(e))
+except Exception as e:
+        os.remove(tmpCountFile)
+        print (e)
+        procp = STATE_CRITICAL
+        traceback.print_exc() 
+print(procp)
+sys.exit(procp) 
