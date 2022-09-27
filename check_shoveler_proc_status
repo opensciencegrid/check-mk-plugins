@@ -12,9 +12,9 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 out_messages = []
-def executeCommandBD(com):
-        with open('/tmp/out_shovler_status.txt','w+') as fout:
-                with open('/tmp/err_shovler_status.txt','w+') as ferr:
+def executeCommandBD(com,host):
+        with open('/tmp/out_shovler_proc_status'+host+'.txt','w+') as fout:
+                with open('/tmp/err_shovler_proc_status'+host+'.txt','w+') as ferr:
                         #print(com)
                         out=subprocess.call([com],stdout=fout,stderr=ferr,timeout=500,shell=True)
                         fout.seek(0)
@@ -42,7 +42,7 @@ try:
         host = sys.argv[1]
         delta = 10;
         tmpCountFile = "/tmp/"+host+"provShoveler";
-        e = executeCommandBD("curl -i http://"+host+":9667/metrics")
+        e = executeCommandBD("curl -i http://"+host+":9667/metrics",host)
         #print(checkOuput(e))
         procp = checkOuput(e)
         if(procp == STATE_CRITICAL):
