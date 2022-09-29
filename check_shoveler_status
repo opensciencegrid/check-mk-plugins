@@ -9,9 +9,9 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 out_messages = []
-def executeCommandBD(com):
-        with open('/tmp/out_shovler_status.txt','w+') as fout:
-                with open('/tmp/err_shovler_status.txt','w+') as ferr:
+def executeCommandBD(com,host):
+        with open('/tmp/out_shovler_'+host+'_status.txt','w+') as fout:
+                with open('/tmp/err_shovler_'+host+'_status.txt','w+') as ferr:
                         #print(com)
                         out=subprocess.call([com],stdout=fout,stderr=ferr,timeout=500,shell=True)
                         fout.seek(0)
@@ -36,13 +36,11 @@ def checkOuput(data):
                                                      return STATE_WARNING
                                               else:
                                                      return STATE_CRITICAL    
-                print ("shoveler_queue_size does not exist")
                 return STATE_CRITICAL
         except Exception as e:
                 print (e)
                 return STATE_CRITICAL
 
 host = sys.argv[1]
-e = executeCommandBD("curl -i http://"+host+":9667/metrics")
-#print(checkOuput(e))
+e = executeCommandBD("curl -i http://"+host+":9667/metrics",host)
 sys.exit(checkOuput(e))
