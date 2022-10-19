@@ -1,12 +1,8 @@
 #!/usr/bin/python3
-import subprocess
 import os
 import sys
 import traceback
-from time import sleep, perf_counter
-import time
 from XRootD import client
-import numpy as np
 
 STATE_OK = 0
 STATE_WARNING = 1
