@@ -22,8 +22,11 @@ def xrdread(cache,port,timeout,filet):
 
     except Exception as e:
        traceback.print_exc()
+       return STATE_CRITICAL;
 
 try:
+    #test that reading private data without authentication (to fail)
+
     cache = sys.argv[1]
     path="/user/ligo/test_access/access_ligo"
     status_1 = xrdread(cache,8443,500,path)
