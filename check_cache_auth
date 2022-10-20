@@ -40,5 +40,5 @@ try:
         sys.exit(STATE_CRITICAL);
 
 except Exception as e:
-    sys.exit(STATE_UNKNOWN)
     traceback.print_exc()
+    sys.exit(STATE_UNKNOWN)
