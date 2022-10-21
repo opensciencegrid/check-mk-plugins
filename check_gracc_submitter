@@ -8,7 +8,8 @@ import sys
 import time
 import requests
 import json
-import htcondor
+#import htcondor
+import os
 
 # Uncomment to enable debugging of condor collector communication
 #htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
@@ -21,6 +22,8 @@ STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
 def count_history_jobs(hostname):
+    os.environ['_condor_SEC_DEFAULT_INTEGRITY'] = 'optional'
+    import htcondor
     coll = htcondor.Collector("flock.opensciencegrid.org" )
     schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, hostname)
     schedd = htcondor.Schedd(schedd_ad)
