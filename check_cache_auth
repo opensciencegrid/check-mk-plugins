@@ -47,12 +47,12 @@ try:
     status = []
 
     path="/user/ligo/test_access/access_ligo"
-    status.append(xrdread(cache,8443,500,path))
- #   status.append(xrdreadhttp(cache,8443,path))
+ #   status.append(xrdread(cache,8443,500,path))
+    status.append(xrdreadhttp(cache,8443,path))
 
     path="/osgconnect/protected/fandri/access_osg_protected"
- #   status.append(xrdreadhttp(cache,8443,path))
-    status.append(xrdread(cache,1094,500,path))
+    status.append(xrdreadhttp(cache,8443,path))
+ #   status.append(xrdread(cache,1094,500,path))
 
     
     for st in status:
