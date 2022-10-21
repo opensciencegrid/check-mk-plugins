@@ -28,6 +28,7 @@ STATE_UNKNOWN = 3
 def xrdreadhttp(cache, port, filet):
     try:
         path = "https://"+cache+":"+str(port)+filet
+        print(path)
         x = requests.get(path)
         print(x)
         if(x.status_code == 403):
