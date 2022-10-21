@@ -2,7 +2,7 @@
 import os
 import sys
 import traceback
-from XRootD import client
+#from XRootD import client
 import requests
 
 STATE_OK = 0
@@ -10,20 +10,20 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
-def xrdread(cache,port,timeout,filet):
-    try:
-        with client.File() as f:
-            status, response = f.open('root://'+cache+':'+str(port)+'//'+filet,timeout=timeout)
-            print(response)
-            if(status.error == True):
-                return STATE_OK;
-            else:
-                return STATE_CRITICAL;
-
-    except Exception as e:
-       print(e)
-       traceback.print_exc()
-       return STATE_CRITICAL;
+#def xrdread(cache,port,timeout,filet):
+#    try:
+#        with client.File() as f:
+#            status, response = f.open('root://'+cache+':'+str(port)+'//'+filet,timeout=timeout)
+#            print(response)
+#            if(status.error == True):
+#                return STATE_OK;
+#            else:
+#                return STATE_CRITICAL;
+#
+#    except Exception as e:
+#       print(e)
+#       traceback.print_exc()
+#       return STATE_CRITICAL;
 
 def xrdreadhttp(cache, port, filet):
     try:
@@ -47,11 +47,11 @@ try:
     status = []
 
     path="/user/ligo/test_access/access_ligo"
-    status.append(xrdread(cache,8443,500,path))
+ #   status.append(xrdread(cache,8443,500,path))
     status.append(xrdreadhttp(cache,8443,path))
 
     path="/osgconnect/protected/fandri/access_osg_protected"
-    status.append(xrdreadhttp(cache,8443,path))
+ #   status.append(xrdreadhttp(cache,8443,path))
     status.append(xrdread(cache,1094,500,path))
 
     
