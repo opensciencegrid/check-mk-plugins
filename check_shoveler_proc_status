@@ -40,7 +40,7 @@ def checkOuput(data):
                 return STATE_CRITICAL
 try:
         host = sys.argv[1]
-        delta = 10;
+        delta = 5;
         tmpCountFile = "/tmp/"+host+"provShoveler";
         e = executeCommandBD("curl -i http://"+host+":9667/metrics",host)
         #print(checkOuput(e))
