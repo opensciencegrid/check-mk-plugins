@@ -29,7 +29,7 @@ def xrdreadhttp(cache, port, filet):
     try:
         path = "https://"+cache+":"+str(port)+filet
         print(path)
-        x = requests.get(path)
+        x = requests.get(path, verify="/etc/pki/tls/certs/ca-bundle.crt")
         print(x)
         if(x.status_code == 403):
             return STATE_OK;

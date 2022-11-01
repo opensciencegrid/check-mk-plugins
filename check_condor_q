@@ -3,7 +3,7 @@
 
 import argparse
 import sys
-import htcondor
+#import htcondor
 import os
 
 # Nagios exit status
@@ -17,7 +17,6 @@ def main():
     states = [STATE_OK]
     messages = []
     jobs = []
-
     job_attrs = [
         'JobStatus',
         'ServerTime',
@@ -26,7 +25,28 @@ def main():
         'GridJobId',
         'HoldReasonCode',
     ]
+    extra_vars = {}
+    if args.extra_vars:
+        try:
+            #parse extra condor configs to overwrite default:
+            #example args from command like: --extra-vars _condor_VAR1=value1;_condor_VAR2=value2
+            #parsed to dictionary extra_vars = {'_condor_VAR1' : value1, '_condor_VAR2' : value2}
+            extra_vars = dict((k.strip(), v.strip())
+                             for k, v in (element.split('=')
+                                 for element in args.extra_vars.split(';')))
+            for var in extra_vars.keys():
+                if var.startswith('_condor_'):
+                    os.environ[var] = str(extra_vars[var])
+                    #print (var + os.environ[var])
+                else:
+                    messages.append("Extra variable not valid, should start with \'_condor_\', ignoring")
+        except Exception as e:
+            states.append(STATE_UNKNOWN)
+            messages.append(str(e) + " Please review --extra-vars option")
+            print (messages)
 
+    #import htcondor after os.environ changed
+    import htcondor
     try:
         coll = htcondor.Collector(args.collector)
         schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
@@ -56,7 +76,11 @@ def main():
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('collector')
+    parser.add_argument('--collector', dest='collector', type=str,
+                        help='Collector hostname for condor_status -pool')
+    parser.add_argument('--extra-vars', dest='extra_vars', type=str,
+                        help='Overwrite variables defined in condor_config_val, seperated by \';\', e.g. _condor_VAR1=value1;_condor_VAR2=value2')
+    #parser.add_argument('collector')
     return parser.parse_args()
 
 if __name__ == "__main__":
