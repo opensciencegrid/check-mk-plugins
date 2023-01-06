@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+
+import scitokens
+import subprocess
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+import random
+import os
+import sys
+
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+out_messages = []
+def executeCommandBD(com,host):
+        with open('/tmp/out_shovler_'+host+'_status.txt','w+') as fout:
+                with open('/tmp/err_shovler_'+host+'_status.txt','w+') as ferr:
+                        out=subprocess.call([com],stdout=fout,stderr=ferr,timeout=30,shell=True)
+                        fout.seek(0)
+                        output=fout.read()
+                        ferr.seek(0)
+                        errors = ferr.read()
+                        return errors
+
+def checkOuput(data):
+        try:
+                lines = data.splitlines()
+                for l in lines:
+                        if ( l.find('HTTP/1.1') != -1 ):
+                                data = l.split(' ')
+                                if((data[2] == "200")):
+                                        return "200"
+                return "204"
+        except:
+                return "204"
+
+
+
+certpath = 'ligocert'
+e = "nop"
+try:
+        e = executeCommandBD("curl -v -GET -E "+certpath+" -k https://"+sys.argv[1]+":8443/user/ligo/test_access/access_ligo -o saida ",sys.argv[1])
+except:
+        sys.exit(STATE_CRITICAL)
+respRead = checkOuput(e)
+if (respRead != "200"):
+        out_messages.append("Error reading cache "+respRead)
+else:
+        out_messages.append("file accessed")
+
+if(respRead == "200"):
+        sys.exit(STATE_OK)
+else:
+         sys.exit(STATE_CRITICAL)
