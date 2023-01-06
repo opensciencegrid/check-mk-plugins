@@ -21,6 +21,7 @@ def executeCommandBD(com,host):
                         output=fout.read()
                         ferr.seek(0)
                         errors = ferr.read()
+#                        print (errors)
                         return errors
 
 def checkOuput(data):
@@ -37,10 +38,10 @@ def checkOuput(data):
 
 
 
-certpath = 'ligocert'
+certpath = '/tmp/ligocert'
 e = "nop"
 try:
-        e = executeCommandBD("curl -v -GET -E "+certpath+" -k https://"+sys.argv[1]+":8443/user/ligo/test_access/access_ligo -o saida ",sys.argv[1])
+        e = executeCommandBD("curl -v -GET -E "+certpath+" -k https://"+sys.argv[1]+":8443/user/ligo/test_access/access_ligo -o /tmp/saida ",sys.argv[1])
 except:
         sys.exit(STATE_CRITICAL)
 respRead = checkOuput(e)
@@ -48,6 +49,7 @@ if (respRead != "200"):
         out_messages.append("Error reading cache "+respRead)
 else:
         out_messages.append("file accessed")
+print (out_messages)
 
 if(respRead == "200"):
         sys.exit(STATE_OK)
