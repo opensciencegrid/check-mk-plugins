@@ -111,6 +111,7 @@ token.update_claims({"sub":"osgmon"});
 serialized_token = token.serialize(issuer=issuerToken)
 
 e = executeCommandBD("curl -i -X 'DELETE' -H 'Authorization: Bearer " +serialized_token.decode()+"' -k https://stash-xrd.osgconnect.net:1094/ospool/monitoring/PROTECTED/"+filename,sys.argv[1])
+out_messages.append(e)
 respDeleteFileOrigin = checkOuput(e)
 if (respDeleteFileOrigin != "200"):
 	#print("Error delete origin "+respDeleteFileOrigin) 
