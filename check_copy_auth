@@ -39,6 +39,7 @@ try:
 except:
         sys.exit(STATE_CRITICAL)
         
+out_messages.append(e)
 respRead = checkOuput(e)
 
 if (respRead != "200"):
