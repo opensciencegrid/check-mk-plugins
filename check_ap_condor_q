@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
 import argparse
 import sys
-#import htcondor
 import os
+import time
 
 # Nagios exit status
 STATE_OK = 0
@@ -41,21 +41,11 @@ def main():
     #import htcondor after os.environ changed
     import htcondor
 
-    job_attrs = [
-        'JobStatus',
-        'ServerTime',
-        'EnteredCurrentStatus',
-        'GridJobStatus',
-        'GridJobId',
-        'HoldReasonCode',
-    ]
-
     try:
         coll = htcondor.Collector(args.collector)
-        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, args.schedd)
+        schedd_ad = coll.query(ad_type=htcondor.AdTypes.Schedd, constraint='Machine == "{}"'.format(args.schedd))[0]
         #print (schedd_ad)
         schedd = htcondor.Schedd(schedd_ad)
-        jobs = schedd.xquery(projection=job_attrs)
     except IOError as e:
         # Connection failed
         states.append(STATE_CRITICAL)
@@ -65,21 +55,46 @@ def main():
         states.append(STATE_UNKNOWN)
         messages.append(str(e))
 
-    #perf_data = ' |running=%(running)d idle=%(idle)d held=%(held)d factory_held=%(factory_held)d' % stats
-    #perf_data += ' req_idle=' + str(req_idle)
-    #perf_data += ' req_max=' + str(req_max)
-   
+
+    if args.mode == 'jobs':
+        states.append(STATE_OK)
+        messages.append('{} jobs running'.format(schedd_ad['TotalRunningJobs']))
+        if float(schedd_ad['TotalHeldJobs']) / schedd_ad['TotalRunningJobs'] > 0.3:
+            states.append(STATE_WARNING)
+            messages.append('{} held jobs'.format(schedd_ad['TotalHeldJobs']))
+
+    elif args.mode == 'transfers':
+        states.append(STATE_OK)
+        messages.append('{} up, {} down'.format(
+            schedd_ad['TransferQueueNumUploading'],
+            schedd_ad['TransferQueueNumDownloading']))
+        if schedd_ad['TransferQueueNumWaitingToUpload'] > 0:
+            states.append(STATE_WARNING)
+            messages.append('{} up waiting'.format(schedd_ad['TransferQueueNumWaitingToUpload']))
+        if schedd_ad['TransferQueueNumWaitingToDownload'] > 0:
+            states.append(STATE_WARNING)
+            messages.append('{} down waiting'.format(schedd_ad['TransferQueueNumWaitingToDownload']))
+
+    else:
+        # default mode - check deamon stats
+        if schedd_ad['DaemonStartTime'] + 3600 > time.time():
+            states.append(STATE_WARNING)
+            messages.append('Schedd recently restarted')
+        if schedd_ad['DaemonCoreDutyCycle'] > .8:
+            states.append(STATE_WARNING)
+            messages.append('DaemonCoreDutyCycle is {:.0f}%'.format(schedd_ad['DaemonCoreDutyCycle'] * 100))
+
     state = max(states)
     message = ', '.join(messages) 
     if not message:
         message = 'Scheduler is up.'
-
-    #print(message + perf_data)
     print(message)
     sys.exit(state)
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', dest='mode', type=str,
+                        help='Modes available: deamon,jobs,transfers')
     parser.add_argument('--collector', dest='collector', type=str,
                         help='Collector hostname for condor_q -pool')
     parser.add_argument('--schedd', dest='schedd', type=str,
