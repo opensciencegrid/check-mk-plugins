@@ -64,16 +64,24 @@ def main():
             messages.append('{} held jobs'.format(schedd_ad['TotalHeldJobs']))
 
     elif args.mode == 'transfers':
-        states.append(STATE_OK)
-        messages.append('{} up, {} down'.format(
-            schedd_ad['TransferQueueNumUploading'],
-            schedd_ad['TransferQueueNumDownloading']))
-        if schedd_ad['TransferQueueNumWaitingToUpload'] > 0:
+        # sometimes the transfer queue attributes are missing
+        if 'TransferQueueNumUploading' not in schedd_ad or \
+           'TransferQueueNumDownloading' not in schedd_ad or \
+           'TransferQueueNumWaitingToUpload' not in schedd_ad or \
+           'TransferQueueNumWaitingToDownload' not in schedd_ad:
             states.append(STATE_WARNING)
-            messages.append('{} up waiting'.format(schedd_ad['TransferQueueNumWaitingToUpload']))
-        if schedd_ad['TransferQueueNumWaitingToDownload'] > 0:
-            states.append(STATE_WARNING)
-            messages.append('{} down waiting'.format(schedd_ad['TransferQueueNumWaitingToDownload']))
+            messages.append('schedd ad is missing transfer queue attributes')
+        else:
+            states.append(STATE_OK)
+            messages.append('{} up, {} down'.format(
+                schedd_ad['TransferQueueNumUploading'],
+                schedd_ad['TransferQueueNumDownloading']))
+            if schedd_ad['TransferQueueNumWaitingToUpload'] > 0:
+                states.append(STATE_WARNING)
+                messages.append('{} up waiting'.format(schedd_ad['TransferQueueNumWaitingToUpload']))
+            if schedd_ad['TransferQueueNumWaitingToDownload'] > 0:
+                states.append(STATE_WARNING)
+                messages.append('{} down waiting'.format(schedd_ad['TransferQueueNumWaitingToDownload']))
 
     else:
         # default mode - check deamon stats
