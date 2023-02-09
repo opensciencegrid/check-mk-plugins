@@ -72,7 +72,7 @@ def gracc_index_count(api_url, api_index, hostname):
         history_count = 0
         if hostname:
             history_count = count_history_jobs(hostname)
-        if history_count:
+        if history_count > 20:
             print ('GRACC received 0 records from ' + hostname + ' in index ' + api_index + ' but there were ' + str(history_count) + ' jobs submitted')
             state = STATE_WARN
         #elif history_count[0]:
