@@ -36,6 +36,7 @@ def fqdn_from_gatekeeper_and_gridtype(gatekeeper, gridtype):
 
 
 def is_hosted_fqdn(fqdn):
+    fqdn = str(fqdn)
     return ((fqdn.startswith("hosted-ce") or fqdn.startswith("pearc-ce")) and ( \
         fqdn.endswith(".grid.uchicago.edu") or fqdn.endswith("opensciencegrid.org"))) or \
         fqdn.endswith(".svc.opensciencegrid.org") \
