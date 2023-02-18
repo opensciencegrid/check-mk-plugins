@@ -90,7 +90,7 @@ def main():
         if schedd_ad['DaemonStartTime'] + 3600 > time.time():
             states.append(STATE_WARNING)
             messages.append('Schedd recently restarted')
-        if schedd_ad['RecentDaemonCoreDutyCycle'] > .85:
+        if schedd_ad['RecentDaemonCoreDutyCycle'] >= .990:
             states.append(STATE_WARNING)
             messages.append('RecentDaemonCoreDutyCycle is {:.0f}%'.format(schedd_ad['RecentDaemonCoreDutyCycle'] * 100))
 
