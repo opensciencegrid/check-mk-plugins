@@ -90,7 +90,7 @@ serialized_token = token.serialize(issuer=issuerToken)
 # delete on local file system
 executeCommandBD("rm "+filepath,sys.argv[1])
 
-e = executeCommandBD("curl -i  --output "+ filepath +"  -H 'Authorization: Bearer " +serialized_token.decode()+"' -k "+sys.argv[1]+":8444/ospool/monitoring/PROTECTED/"+ filename + " ; head -n 2 "+filepath,sys.argv[1])
+e = executeCommandBD("curl -i  --output "+ filepath +"  -H 'Authorization: Bearer " +serialized_token.decode()+"' -k "+sys.argv[1]+":8443/ospool/monitoring/PROTECTED/"+ filename + " ; head -n 2 "+filepath,sys.argv[1])
 respReadCached = checkOuput(e)
 if (respReadCached != "200"):
 	#print("Error reading cache "+respReadCached) 
