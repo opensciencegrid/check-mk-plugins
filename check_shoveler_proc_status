@@ -41,6 +41,9 @@ def checkOuput(data):
 try:
         host = sys.argv[1]
         delta = 5;
+        if(host == "osdf-cache.sprace.org.br"):
+                host = "shoveler.sprace.org.br"
+
         tmpCountFile = "/tmp/"+host+"provShoveler";
         e = executeCommandBD("curl -i http://"+host+":9667/metrics",host)
         #print(checkOuput(e))
