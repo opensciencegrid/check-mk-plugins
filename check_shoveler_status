@@ -42,5 +42,8 @@ def checkOuput(data):
                 return STATE_CRITICAL
 
 host = sys.argv[1]
+if(host == "osdf-cache.sprace.org.br"):
+        host = "shoveler.sprace.org.br"
+
 e = executeCommandBD("curl -i http://"+host+":9667/metrics",host)
 sys.exit(checkOuput(e))
