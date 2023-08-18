@@ -30,9 +30,9 @@ def checkOuput(data):
                                               data = l.split(' ')
                                               qsize = int(data[1])
                                               print ("shovler_queue_size = %d" % qsize)
-                                              if(qsize ==  0):
+                                              if(qsize <=  20):
                                                      return STATE_OK
-                                              elif(qsize > 250 and qsize < 500):
+                                              elif(qsize > 20 and qsize < 500):
                                                      return STATE_WARNING
                                               else:
                                                      return STATE_CRITICAL    
