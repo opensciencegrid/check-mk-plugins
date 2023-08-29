@@ -91,7 +91,7 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as exc:
-        print("Exception occcurred when running probe: %s" % str(exc))
+        print("Exception occcurred when running probe %s" % str(exc))
         var = traceback.format_exc()
         print(var)
         traceback.print_exception(exc)
