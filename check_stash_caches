@@ -93,4 +93,5 @@ if __name__ == '__main__':
     except Exception as exc:
         print("Exception occcurred when running probe: %s" % str(exc))
         traceback.print_exception(exc)
+        traceback.print_exc()
         sys.exit(STATE_CRITICAL)
