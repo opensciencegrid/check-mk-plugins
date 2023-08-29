@@ -8,6 +8,7 @@ import urllib
 import re
 import sys
 import json
+import traceback
 
 STATE_OK = 0
 STATE_WARNING = 1
@@ -91,4 +92,5 @@ if __name__ == '__main__':
         main()
     except Exception as exc:
         print("Exception occcurred when running probe: %s" % str(exc))
+        traceback.print_exception(exc)
         sys.exit(STATE_CRITICAL)
