@@ -59,11 +59,9 @@ def main():
     if args.mode == 'jobs':
         states.append(STATE_OK)
         messages.append('{} jobs running'.format(schedd_ad['TotalRunningJobs']))
-        if (schedd_ad['TotalRunningJobs'] > 100 and float(schedd_ad['TotalHeldJobs']) / schedd_ad['TotalRunningJobs'] > 0.3):
+        if (schedd_ad['TotalHeldJobs'] > 10000):
             states.append(STATE_WARNING)
-            messages.append('{} held jobs ({:.0f}% of running jobs)'.format(
-                schedd_ad['TotalHeldJobs'],
-                float(schedd_ad['TotalHeldJobs']) / schedd_ad['TotalRunningJobs'] * 100))
+            messages.append('{} held jobs'.format(schedd_ad['TotalHeldJobs']))
 
     elif args.mode == 'transfers':
         # sometimes the transfer queue attributes are missing
