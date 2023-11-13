@@ -36,7 +36,7 @@ certpath = '/etc/grid-security/hostcert.pem'
 certkey = '/etc/grid-security/hostkey.pem'
 e = "nop"
 try:
-        e = executeCommandBD("curl -v -GET -E "+certpath+" --key " +certkey+ " -k https://"+sys.argv[1]+":8443/user/ligo/test_access/access_ligo ",sys.argv[1])
+        e = executeCommandBD("curl -v -GET -E "+certpath+" --key " +certkey+ " -k https://"+sys.argv[1]+":1095/nrp/protected/xenon-biggrid-nl/xenontest",sys.argv[1])
 except:
         sys.exit(STATE_CRITICAL)
         
