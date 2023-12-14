@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+
+"""Check CVMFS server GeoDB last updated time"""
+
+import argparse
+import datetime
+import sys
+
+import dateutil.parser
+import requests
+
+# Nagios exit status
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+
+def main():
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+    metrics = []
+
+    try:
+        geodb_date = get_geodb_date(args.host)
+
+        messages.append(f"Updated {geodb_date}")
+
+        now_date = datetime.datetime.now(datetime.timezone.utc)
+        geoip_age_sec = (now_date - geodb_date).total_seconds()
+        metrics.append(f"age={geoip_age_sec:n}")
+
+        warn_date = now_date - datetime.timedelta(days=args.age_warn)
+        crit_date = now_date - datetime.timedelta(days=args.age_crit)
+
+        if geodb_date < crit_date:
+            states.append(STATE_CRITICAL)
+            messages.append(", critically outdated")
+        elif geodb_date < warn_date:
+            states.append(STATE_WARNING)
+            messages.append(", outdated")
+
+    except requests.exceptions.ConnectionError as e:
+        # Report connection errors or timeouts as warnings
+        states.append(STATE_WARNING)
+        messages.append(str(e))
+    except Exception as e:
+        # Calling everything else unknown
+        states.append(STATE_UNKNOWN)
+        messages.append(str(e))
+
+    if metrics:
+        metrics_txt = "|".join(metrics)
+    else:
+        metrics_txt = "-"
+
+    print(f'{max(states)} cvmfs_geodb {metrics_txt} {"".join(messages)}')
+    sys.exit(max(states))
+
+
+def get_geodb_date(host):
+    r = requests.get(f"http://{host}/cvmfs/info/v1/repositories.json", timeout=10)
+    r.raise_for_status()
+
+    if r.json()["schema"] == 1:
+        # "last_geodb_update" : "Tue Dec 12 09:05:04 UTC 2023",
+        return dateutil.parser.parse(r.json()["last_geodb_update"])
+
+    raise TypeError(f'Schema {r.json()["schema"]} is not supported')
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("host")
+    parser.add_argument("--age-warn", default=9, help="Warning age threshold in days")
+    parser.add_argument("--age-crit", default=15, help="Critical age threshold in days")
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    # Run script as main
+    main()
