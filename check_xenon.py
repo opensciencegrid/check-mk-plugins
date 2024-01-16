@@ -28,9 +28,10 @@ def checkOuput(data):
                         if ( l.find('HTTP/1.1') != -1 and l.find('200') != -1 and l.find('OK') != -1):
                                         return "200"
                 return "204"
-        except Exception as e:
-                print(e) 
+        except Exception as e1:
+                print(e1) 
                 traceback.print_exc()
+                out_messages.append(str(e1))
                 return STATE_CRITICAL;
 
 
@@ -40,9 +41,10 @@ certkey = '/etc/grid-security/hostkey.pem'
 e = "nop"
 try:
         e = executeCommandBD("curl -v -GET -E "+certpath+" --key " +certkey+ " -k https://"+sys.argv[1]+":1095/nrp/protected/xenon-biggrid-nl/xenontest",sys.argv[1])
-except Exception as e:
-        print(e) 
+except Exception as e1:
+        print(e1) 
         traceback.print_exc()
+        out_messages.append(str(e1))
         return STATE_CRITICAL;
         
 out_messages.append(e)
