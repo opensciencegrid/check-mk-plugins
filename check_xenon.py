@@ -4,6 +4,7 @@ import subprocess
 import random
 import os
 import sys
+import traceback
 
 STATE_OK = 0
 STATE_WARNING = 1
@@ -27,8 +28,10 @@ def checkOuput(data):
                         if ( l.find('HTTP/1.1') != -1 and l.find('200') != -1 and l.find('OK') != -1):
                                         return "200"
                 return "204"
-        except:
-                return "204"
+        except Exception as e:
+                print(e) 
+                traceback.print_exc()
+                return STATE_CRITICAL;
 
 
 
@@ -37,8 +40,10 @@ certkey = '/etc/grid-security/hostkey.pem'
 e = "nop"
 try:
         e = executeCommandBD("curl -v -GET -E "+certpath+" --key " +certkey+ " -k https://"+sys.argv[1]+":1095/nrp/protected/xenon-biggrid-nl/xenontest",sys.argv[1])
-except:
-        sys.exit(STATE_CRITICAL)
+except Exception as e:
+        print(e) 
+        traceback.print_exc()
+        return STATE_CRITICAL;
         
 out_messages.append(e)
 respRead = checkOuput(e)
