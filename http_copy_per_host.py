@@ -40,12 +40,12 @@ certpath = '/etc/grid-security/hostcert.pem'
 certkey = '/etc/grid-security/hostkey.pem'
 e = "nop"
 try:
-        e = executeCommandBD("curl -v -GET -k http://"+sys.argv[1]+":8000/nrp/cachetest/cache_100",sys.argv[1])
+        e = executeCommandBD("curl -v -GET -k http://" + sys.argv[1] + ":8000/nrp/cachetest/cache_100",sys.argv[1])
 except Exception as e1:
         print(e1) 
         traceback.print_exc()
         out_messages.append(str(e1))
-        return STATE_CRITICAL;
+        sys.exit(STATE_CRITICAL)
         
 out_messages.append(e)
 respRead = checkOuput(e)
