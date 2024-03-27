@@ -59,4 +59,4 @@ print (out_messages)
 if(respRead == "200"):
         sys.exit(STATE_OK)
 else:
-         sys.exit(STATE_CRITICAL)
+        sys.exit(STATE_CRITICAL)
