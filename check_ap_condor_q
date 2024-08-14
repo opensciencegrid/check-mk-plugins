@@ -55,6 +55,7 @@ def main():
         states.append(STATE_UNKNOWN)
         messages.append(str(e))
 
+    now = int(time.time())
 
     if args.mode == 'jobs':
         states.append(STATE_OK)
@@ -76,26 +77,30 @@ def main():
             messages.append('{} up, {} down'.format(
                 schedd_ad['TransferQueueNumUploading'],
                 schedd_ad['TransferQueueNumDownloading']))
-            if schedd_ad['TransferQueueNumWaitingToUpload'] > 0:
+            if schedd_ad['TransferQueueNumWaitingToUpload'] > 100:
                 states.append(STATE_WARNING)
                 messages.append('{} up waiting'.format(schedd_ad['TransferQueueNumWaitingToUpload']))
-            if schedd_ad['TransferQueueNumWaitingToDownload'] > 0:
+            if schedd_ad['TransferQueueNumWaitingToDownload'] > 100:
                 states.append(STATE_WARNING)
                 messages.append('{} down waiting'.format(schedd_ad['TransferQueueNumWaitingToDownload']))
 
     else:
         # default mode - check deamon stats
-        if schedd_ad['DaemonStartTime'] + 3600 > time.time():
+        if now - schedd_ad['LastHeardFrom'] > 420:
+            # schedds report every 300 seconds
+            states.append(STATE_CRITICAL)
+            messages.append('{} seconds since last update from schedd'.format(now - schedd_ad['LastHeardFrom']))
+        if now - schedd_ad['DaemonStartTime'] < 3600:
             states.append(STATE_WARNING)
             messages.append('Schedd recently restarted')
-        if schedd_ad['RecentDaemonCoreDutyCycle'] >= .990:
+        if schedd_ad['RecentDaemonCoreDutyCycle'] >= .95:
             states.append(STATE_WARNING)
             messages.append('RecentDaemonCoreDutyCycle is {:.0f}%'.format(schedd_ad['RecentDaemonCoreDutyCycle'] * 100))
 
     state = max(states)
     message = ', '.join(messages) 
     if not message:
-        message = 'Scheduler is up.'
+        message = 'Scheduler is healthy'
     print(message)
     sys.exit(state)
 
