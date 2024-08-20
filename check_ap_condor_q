@@ -12,50 +12,39 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
-def main():
-    args = parse_args()
-    states = [STATE_OK]
-    messages = []
-    jobs = []
-    extra_vars = {}
-    if args.extra_vars:
-        try:
-            #parse extra condor configs to overwrite default:
-            #example args from command like: --extra-vars _condor_VAR1=value1;_condor_VAR2=value2
-            #parsed to dictionary extra_vars = {'_condor_VAR1' : value1, '_condor_VAR2' : value2}
-            extra_vars = dict((k.strip(), v.strip())
-                             for k, v in (element.split('=')
-                                 for element in args.extra_vars.split(';')))
 
-            for var in extra_vars.keys():
-                if var.startswith('_condor_'):
-                    os.environ[var] = str(extra_vars[var])
-                    #print (var + os.environ[var])
-                else:
-                    messages.append("Extra variable not valid, should start with \'_condor_\', ignoring")
-        except Exception as e:
-            states.append(STATE_UNKNOWN)
-            messages.append(str(e) + " Please review --extra-vars option")
-            print (messages)
-
+def check(args, states, messages):
     #import htcondor after os.environ changed
     import htcondor
 
+    schedd_ad = None
     try:
         coll = htcondor.Collector(args.collector)
         schedd_ad = coll.query(ad_type=htcondor.AdTypes.Schedd, constraint='Machine == "{}"'.format(args.schedd))[0]
-        #print (schedd_ad)
         schedd = htcondor.Schedd(schedd_ad)
     except IOError as e:
         # Connection failed
         states.append(STATE_CRITICAL)
-        messages.append(str(e))
+        messages.append("Unable to connnect to CM: " + str(e))
+        return
+    except IndexError as e:
+        # Missing ad
+        states.append(STATE_CRITICAL)
+        messages.append("Schedd is not registered in the collector")
+        return
     except Exception as e:
         # Other error
         states.append(STATE_UNKNOWN)
-        messages.append(str(e))
+        messages.append("Unable to fetch schedd ad: " + str(e))
+        return
 
     now = int(time.time())
+
+    if not schedd_ad:
+        states.append(STATE_CRITICAL)
+        messages.append("Schedd is not registered in the collector")
+        return
+
 
     if args.mode == 'jobs':
         states.append(STATE_OK)
@@ -97,12 +86,6 @@ def main():
             states.append(STATE_WARNING)
             messages.append('RecentDaemonCoreDutyCycle is {:.0f}%'.format(schedd_ad['RecentDaemonCoreDutyCycle'] * 100))
 
-    state = max(states)
-    message = ', '.join(messages) 
-    if not message:
-        message = 'Scheduler is healthy'
-    print(message)
-    sys.exit(state)
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -115,6 +98,43 @@ def parse_args():
     parser.add_argument('--extra-vars', dest='extra_vars', type=str,
                         help='Overwrite variables defined in condor_config_val, seperated by \';\', e.g. _condor_VAR1=value1;_condor_VAR2=value2')
     return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    states = [STATE_OK]
+    messages = []
+    jobs = []
+    extra_vars = {}
+    if args.extra_vars:
+        try:
+            #parse extra condor configs to overwrite default:
+            #example args from command like: --extra-vars _condor_VAR1=value1;_condor_VAR2=value2
+            #parsed to dictionary extra_vars = {'_condor_VAR1' : value1, '_condor_VAR2' : value2}
+            extra_vars = dict((k.strip(), v.strip())
+                             for k, v in (element.split('=')
+                                 for element in args.extra_vars.split(';')))
+
+            for var in extra_vars.keys():
+                if var.startswith('_condor_'):
+                    os.environ[var] = str(extra_vars[var])
+                    #print (var + os.environ[var])
+                else:
+                    messages.append("Extra variable not valid, should start with \'_condor_\', ignoring")
+        except Exception as e:
+            states.append(STATE_UNKNOWN)
+            messages.append(str(e) + " Please review --extra-vars option")
+            print (messages)
+
+    check(args, states, messages)
+
+    state = max(states)
+    message = ', '.join(messages)
+    if not message:
+        message = 'Scheduler is healthy'
+    print(message)
+    sys.exit(state)
+
 
 if __name__ == "__main__":
     # Run script as main
