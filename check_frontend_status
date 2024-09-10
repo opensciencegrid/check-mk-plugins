@@ -24,7 +24,7 @@ def get_attribs(entry):
 
 def get_tree(url):
     process_info = subprocess.run(
-            ["curl", "-Ls", "%s" % url],
+            ["curl", "-4Ls", "%s" % url],
             stdout=subprocess.PIPE)
     if process_info.returncode:
         print("Failed to download XML status from frontend at %s." % url)
