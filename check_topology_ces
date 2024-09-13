@@ -7,6 +7,11 @@ import sys
 import re
 import xml.etree.ElementTree as ET
 
+import sys
+from importlib import reload
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
 import htcondor
 
 # Nagios exit status
@@ -44,6 +49,7 @@ def is_hosted_fqdn(fqdn):
 
 def get_ce_fqdns_from_factory(factory_fqdn):
     entry_info = set()
+    htcondor.param['SEC_DEFAULT_INTEGRITY']='optional'
     coll = htcondor.Collector(factory_fqdn)
     entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="glidefactory"', ['GLIDEIN_Gatekeeper', 'GLIDEIN_GridType'])
     for entry in entries:
