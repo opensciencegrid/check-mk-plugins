@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
 import argparse
@@ -49,13 +49,13 @@ def main():
         sys.exit(state)
     except socket.gaierror as e:
         # Could not resolve hostname => UNKNOWN
-        print 'Error: %s' % str(e)
+        print ('Error: %s', str(e))
         sys.exit(STATE_UNKNOWN)
     except Exception as e:
         # Calling everything else critical:
         # - socket.error   (Network is unreachable)
         # - socket.timeout
-        print 'Error: %s' % str(e)
+        print ('Error: %s', str(e))
         sys.exit(STATE_CRITICAL)
 
 def gracc_index_count(api_url, api_index, hostname):
