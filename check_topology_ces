@@ -7,11 +7,6 @@ import sys
 import re
 import xml.etree.ElementTree as ET
 
-import sys
-from importlib import reload
-reload(sys)
-sys.setdefaultencoding('utf-8')
-
 import htcondor
 
 # Nagios exit status
@@ -98,8 +93,8 @@ def main():
     inactive_topology_ces = set()
     for resourcegroup in prod_tree.findall("./ResourceGroup"):
         for resource, fqdn, services in get_ce_resources_with_fqdns_and_services(resourcegroup):
-            if resource.find("./Disable") is not None and resource.find("./Disable").text.strip() == "False" and \
-                    resource.find("./Active") is not None and resource.find("./Active").text.strip() == "True":
+            if resource.find("./Disable") is not None and resource.find("./Disable").text.strip() == "false" and \
+                    resource.find("./Active") is not None and resource.find("./Active").text.strip() == "true":
                 active_topology_ces.add(fqdn)
             else:
                 inactive_topology_ces.add(fqdn)
