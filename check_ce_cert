@@ -16,6 +16,11 @@ from datetime import datetime, timedelta
 #htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
 #htcondor.enable_debug()
 
+# Enable SSL and client authentication to retrieve cert in >=v24.0
+# https://opensciencegrid.atlassian.net/browse/HTCONDOR-3176
+htcondor.param['SEC_CLIENT_AUTHENTICATION'] = 'REQUIRED'
+htcondor.param['SEC_DEFAULT_AUTHENTICATION_METHODS'] = 'SSL'
+
 # Nagios exit status
 STATE_OK = 0
 STATE_WARNING = 1
