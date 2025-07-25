@@ -70,7 +70,11 @@ def main():
         #if job['JobStatus'] == 1 and (job['ServerTime'] - job['EnteredCurrentStatus']) > 60*10 and 'GridJobStatus' not in job:
         #if job['JobStatus'] == 1 and (job['ServerTime'] - job['EnteredCurrentStatus']) > 600: 
         # Has the routed job been idle for longer than 24 hours
-        if job['JobStatus'] == 1 and (job['ServerTime'] - job['EnteredCurrentStatus']) > 86400:
+        if (
+            job['JobStatus'] == 1
+            and 'ServerTime' in job
+            and (job['ServerTime'] - job['EnteredCurrentStatus']) > 86400
+        ):
             stats['idle_long'] += 1
             continue
 
