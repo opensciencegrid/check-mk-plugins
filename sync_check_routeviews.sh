@@ -18,4 +18,4 @@ do
         then
                  echo $path_r " not found"
         fi
-done < incremental-dirs-routeview.txt
+done < ~/local/lib/nagios/plugins/incremental-dirs-routeview.txt
