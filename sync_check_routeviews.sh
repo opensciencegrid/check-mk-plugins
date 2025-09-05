@@ -1,3 +1,5 @@
+#!/bin/bash
+
 current_month=$(date -d "today" +"%Y.%m")
 while read c
 do
