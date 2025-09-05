@@ -1,5 +1,9 @@
 #!/bin/bash
-
+STATE_OK=0
+STATE_WARNING=1
+STATE_CRITICAL=2
+STATE_UNKNOWN=3
+msg=""
 current_month=$(date -d "today" +"%Y.%m")
 while read c
 do
@@ -16,6 +20,13 @@ do
 
         if  [[ $http_code != "200" ]]
         then
-                 echo $path_r " not found"
+                 msg+=$path_r " not found; "
         fi
 done < ~/local/lib/nagios/plugins/incremental-dirs-routeview.txt
+
+if [[ -z "$msg" ]]; then
+        exit $STATE_OK
+    else
+        echo $msg
+        exit $STATE_CRITICAL
+    fi
