@@ -20,7 +20,7 @@ do
 
         if  [[ $http_code != "200" ]]
         then
-                 msg+=$path_r " not found; "
+                 msg="$msg $path_r not found; "
         fi
 done < ~/local/lib/nagios/plugins/incremental-dirs-routeview.txt
 
