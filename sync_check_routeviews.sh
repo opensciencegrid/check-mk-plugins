@@ -15,7 +15,7 @@ do
         fi
 
 
-        path_r=https://kennesaw-origin.nationalresearchplatform.org:8443/routeviews/routeviews/$d/bgpdata/$current_month
+        path_r=https://kennesaw-origin.nationalresearchplatform.org:8443/routeviews/$d/bgpdata/$current_month
         http_code=$(curl --write-out "%{http_code}" --silent --output /dev/null "$path_r")
 
         if  [[ $http_code != "200" ]]
