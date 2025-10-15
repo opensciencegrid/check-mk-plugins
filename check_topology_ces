@@ -7,7 +7,7 @@ import re
 import urllib.request
 import xml.etree.ElementTree as ET
 
-import htcondor
+import htcondor2
 
 # Nagios exit status
 STATE_OK = 0
@@ -44,9 +44,9 @@ def is_hosted_fqdn(fqdn):
 
 def get_ce_fqdns_from_factory(factory_fqdn):
     entry_info = set()
-    htcondor.param['SEC_DEFAULT_INTEGRITY']='optional'
-    coll = htcondor.Collector(factory_fqdn)
-    entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="glidefactory"', ['GLIDEIN_Gatekeeper', 'GLIDEIN_GridType'])
+    htcondor2.param['SEC_DEFAULT_INTEGRITY']='optional'
+    coll = htcondor2.Collector(factory_fqdn)
+    entries = coll.query(htcondor2.AdTypes.Any, 'MyType=?="glidefactory"', ['GLIDEIN_Gatekeeper', 'GLIDEIN_GridType'])
     for entry in entries:
         if 'GLIDEIN_Gatekeeper' not in entry or 'GLIDEIN_GridType' not in entry:
             continue

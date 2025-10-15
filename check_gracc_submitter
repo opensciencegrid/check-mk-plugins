@@ -11,8 +11,8 @@ import json
 import os
 
 # Uncomment to enable debugging of condor collector communication
-#htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
-#htcondor.enable_debug()
+#htcondor2.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
+#htcondor2.enable_debug()
 
 # Nagios exit status
 STATE_OK = 0
@@ -22,11 +22,11 @@ STATE_UNKNOWN = 3
 
 def count_history_jobs(hostname):
     os.environ['_condor_SEC_DEFAULT_INTEGRITY'] = 'optional'
-    import htcondor
-    #coll = htcondor.Collector("flock.opensciencegrid.org" )
-    coll = htcondor.Collector("cm-1.ospool.osg-htc.org")
-    schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, hostname)
-    schedd = htcondor.Schedd(schedd_ad)
+    import htcondor2
+    #coll = htcondor2.Collector("flock.opensciencegrid.org" )
+    coll = htcondor2.Collector("cm-1.ospool.osg-htc.org")
+    schedd_ad = coll.locate(htcondor2.DaemonTypes.Schedd, hostname)
+    schedd = htcondor2.Schedd(schedd_ad)
     job_list = list(schedd.history(constraint='JobCurrentStartDate',
                                    projection=["JobFinishedHookDone"], 
                                    since="JobFinishedHookDone < %d" % (time.time()-2*86400),

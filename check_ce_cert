@@ -7,19 +7,19 @@ import argparse
 import sys
 #import requests
 #import json
-import htcondor
+import htcondor2
 import subprocess
 from OpenSSL import crypto
 from datetime import datetime, timedelta
 
 # Uncomment to enable debugging of condor collector communication
-#htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
-#htcondor.enable_debug()
+#htcondor2.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
+#htcondor2.enable_debug()
 
 # Enable SSL and client authentication to retrieve cert in >=v24.0
 # https://opensciencegrid.atlassian.net/browse/HTCONDOR-3176
-htcondor.param['SEC_CLIENT_AUTHENTICATION'] = 'REQUIRED'
-htcondor.param['SEC_DEFAULT_AUTHENTICATION_METHODS'] = 'SSL'
+htcondor2.param['SEC_CLIENT_AUTHENTICATION'] = 'REQUIRED'
+htcondor2.param['SEC_DEFAULT_AUTHENTICATION_METHODS'] = 'SSL'
 
 # Nagios exit status
 STATE_OK = 0
@@ -76,8 +76,8 @@ def get_ce_cert_text(collector, ce_hostname):
     '''
     cert_text = None
     try:
-        ad = htcondor.Collector(collector).locate(htcondor.DaemonTypes.Schedd, ce_hostname)
-        sec = htcondor.SecMan().ping(ad, "READ")
+        ad = htcondor2.Collector(collector).locate(htcondor.DaemonTypes.Schedd, ce_hostname)
+        sec = htcondor2.SecMan().ping(ad, "READ")
         #print (sec)
         cert_text = sec["ServerPublicCert"]
             

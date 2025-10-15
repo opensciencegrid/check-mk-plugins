@@ -6,7 +6,7 @@ import re
 import urllib.request
 import xml.etree.ElementTree as ET
 
-import htcondor
+import htcondor2
 
 # Nagios exit status
 STATE_OK = 0
@@ -43,9 +43,9 @@ def is_hosted_fqdn(fqdn):
 
 def get_ce_fqdns_from_factory(factory_fqdn):
     entry_info = set()
-    coll = htcondor.Collector(factory_fqdn)
-    entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="glidefactory"', ['GLIDEIN_Gatekeeper', 'GLIDEIN_GridType','IsCCStar'])
-    #print(coll.query(htcondor.AdTypes.Any, 'MyType=?"glidefactory"'))i
+    coll = htcondor2.Collector(factory_fqdn)
+    entries = coll.query(htcondor2.AdTypes.Any, 'MyType=?="glidefactory"', ['GLIDEIN_Gatekeeper', 'GLIDEIN_GridType','IsCCStar'])
+    #print(coll.query(htcondor2.AdTypes.Any, 'MyType=?"glidefactory"'))i
     for entry in entries:
         if 'GLIDEIN_Gatekeeper' not in entry or 'GLIDEIN_GridType' not in entry or 'IsCCStar' not in entry:
             continue
@@ -54,8 +54,8 @@ def get_ce_fqdns_from_factory(factory_fqdn):
 
 def get_ce_ccstar_from_central_collector():
     entry_info = set()
-    coll = htcondor.Collector("collector.opensciencegrid.org:9619")
-    entries = coll.query(htcondor.AdTypes.Schedd, "IsCCStar", ['CollectorHost'])
+    coll = htcondor2.Collector("collector.opensciencegrid.org:9619")
+    entries = coll.query(htcondor2.AdTypes.Schedd, "IsCCStar", ['CollectorHost'])
     for entry in entries:
         match = re.match(".*:",entry['CollectorHost'])
         if match:

@@ -15,13 +15,13 @@ STATE_UNKNOWN = 3
 
 def check(args, states, messages):
     #import htcondor after os.environ changed
-    import htcondor
+    import htcondor2
 
     schedd_ad = None
     try:
-        coll = htcondor.Collector(args.collector)
-        schedd_ad = coll.query(ad_type=htcondor.AdTypes.Schedd, constraint='Machine == "{}"'.format(args.schedd))[0]
-        schedd = htcondor.Schedd(schedd_ad)
+        coll = htcondor2.Collector(args.collector)
+        schedd_ad = coll.query(ad_type=htcondor2.AdTypes.Schedd, constraint='Machine == "{}"'.format(args.schedd))[0]
+        schedd = htcondor2.Schedd(schedd_ad)
     except IOError as e:
         # Connection failed
         states.append(STATE_CRITICAL)

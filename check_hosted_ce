@@ -3,10 +3,10 @@
 
 import argparse
 import sys
-import htcondor
+import htcondor2
 import os
 
-htcondor.param['SEC_DEFAULT_INTEGRITY']='optional'
+htcondor2.param['SEC_DEFAULT_INTEGRITY']='optional'
 
 # Nagios exit status
 STATE_OK = 0
@@ -30,10 +30,10 @@ def main():
     ]
 
     try:
-        coll = htcondor.Collector(args.collector)
-        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-        schedd = htcondor.Schedd(schedd_ad)
-        jobs = schedd.xquery(constraint='RoutedJob == TRUE', projection=job_attrs)
+        coll = htcondor2.Collector(args.collector)
+        schedd_ad = coll.locate(htcondor2.DaemonTypes.Schedd)
+        schedd = htcondor2.Schedd(schedd_ad)
+        jobs = schedd.query(constraint='RoutedJob == TRUE', projection=job_attrs)
     except IOError as e:
         # Connection failed
         states.append(STATE_CRITICAL)
@@ -102,8 +102,8 @@ def main():
     query_const = 'MyType=?="glidefactory" && GLIDEIN_Gatekeeper=?="' + hostname + ' ' + args.collector +'"'
     resource_name = ''
     try:
-        factory = htcondor.Collector(args.factory)
-        entry_attr = factory.query(htcondor.AdTypes.Any, query_const, ['Name','GlideinConfigPerEntryMaxHeld','GlideinMonitorTotalRequestedIdle', 'GlideinMonitorTotalRequestedMaxGlideins', 'GlideinMonitorTotalStatusHeld'])
+        factory = htcondor2.Collector(args.factory)
+        entry_attr = factory.query(htcondor2.AdTypes.Any, query_const, ['Name','GlideinConfigPerEntryMaxHeld','GlideinMonitorTotalRequestedIdle', 'GlideinMonitorTotalRequestedMaxGlideins', 'GlideinMonitorTotalStatusHeld'])
         #print(entry_attr)
         if len(entry_attr) < 1:
             messages.append(" not supported by factory " + args.factory)
