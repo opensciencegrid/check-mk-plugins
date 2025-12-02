@@ -21,7 +21,7 @@ def get_ce_resources_with_fqdns_and_services(resourcegroup):
     res_tuples = [
         (res, res.find("./FQDN").text.strip(), res.findall("./Services/Service"))
         for res in resources
-        if res.find("./FQDN") is not None and res.find("./Services/Service") is not None and res.find("./Services/Service/Name").text.strip()=="Pelican cache:"
+        if res.find("./FQDN") is not None and res.find("./Services/Service") is not None and res.find("./Services/Service/Name").text.strip() in ["Pelican cache", "XRootD cache server"]
     ]
     for res_tuple in res_tuples:
         if [svc for svc in res_tuple[2]]:
@@ -49,7 +49,10 @@ def main():
     states = [STATE_OK]
     messages = []
 
-    prod_tree = get_tree("gridtype=on&gridtype_1=on&active=on&active_value=1&service=on&service_156=on&service_147=on")
+    # topology/services.yaml
+    # XRootD cache server: 156
+    # Pelican cache: 164
+    prod_tree = get_tree("gridtype=on&gridtype_1=on&active=on&active_value=1&service=on&service_156=on&service_164=on")
     topology_caches = set()
     for resourcegroup in prod_tree.findall("./ResourceGroup"):
         for resource, fqdn, services in get_ce_resources_with_fqdns_and_services(resourcegroup):
