@@ -21,7 +21,7 @@ def get_ce_resources_with_fqdns_and_services(resourcegroup):
     res_tuples = [
         (res, res.find("./FQDN").text.strip(), res.findall("./Services/Service"))
         for res in resources
-        if res.find("./FQDN") is not None and res.find("./Services/Service") is not None and res.find("./Services/Service/Name").text.strip()=="XRootD cache server"
+        if res.find("./FQDN") is not None and res.find("./Services/Service") is not None and res.find("./Services/Service/Name").text.strip()=="Pelican cache:"
     ]
     for res_tuple in res_tuples:
         if [svc for svc in res_tuple[2]]:
