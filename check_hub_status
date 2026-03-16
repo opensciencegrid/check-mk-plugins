@@ -42,6 +42,7 @@ def main():
     	        if hub_status != 'healthy':
                     messages.append("Hub not healty")
                     states.append(STATE_CRITICAL)
+                messages.append("Page content: " + str(json_page)[:1000])
             except KeyError as e:
                 messages.append("Error: Key "+ str(e) + " not found in the page")
                 messages.append("Page content: " + str(json_page)[:1000])
