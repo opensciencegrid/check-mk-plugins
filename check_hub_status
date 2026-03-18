@@ -37,9 +37,9 @@ def main():
         #print (json_page)
         if resp.status_code == 200:
             try:
-    	        hub_status = json_page["status"]
-    	        messages.append("Hub status: " + hub_status)
-    	        if hub_status != 'healthy':
+                hub_status = json_page["status"]
+                messages.append("Hub status: " + hub_status)
+                if hub_status != 'healthy':
                     messages.append("Hub not healty")
                     states.append(STATE_CRITICAL)
                 messages.append("Page content: " + str(json_page)[:1000])
