@@ -37,7 +37,6 @@ def check(pool):
     Query the HTCondor negotiator classad via the collector and verify:
       - LastNegotiationCycleEnd0 is within the last 10 minutes
       - LastNegotiationCycleDuration0 < 120
-      - LastNegotiationCycleCandidateSlots0 > 10000
     """
 
     negotiator_ad = None
@@ -94,17 +93,6 @@ def check(pool):
             reg_issue(CRITICAL, "Negotiation cycle duration %ds (>=120s)" % duration)
         else:
             reg_issue(OK, "Cycle duration %ds" % duration)
-
-    # LastNegotiationCycleCandidateSlots0: must be > 10000
-    slots = negotiator_ad.get("LastNegotiationCycleCandidateSlots0")
-    if slots is None:
-        reg_issue(CRITICAL, "LastNegotiationCycleCandidateSlots0 missing from negotiator ad")
-    else:
-        slots = int(slots)
-        if slots <= 10000:
-            reg_issue(CRITICAL, "Candidate slots %d (<=10000)" % slots)
-        else:
-            reg_issue(OK, "Candidate slots %d" % slots)
 
     report(pool)
 
