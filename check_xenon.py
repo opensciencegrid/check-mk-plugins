@@ -40,7 +40,7 @@ certpath = '/etc/grid-security/hostcert.pem'
 certkey = '/etc/grid-security/hostkey.pem'
 e = "nop"
 try:
-        e = executeCommandBD("curl -v -GET -E "+certpath+" --key " +certkey+ " -k https://"+sys.argv[1]+":"+sys.argv[2]+"/xenon-biggrid-nl/xenontest",sys.argv[1])
+        e = executeCommandBD("curl -k -v -GET -E "+certpath+" --key " +certkey+ " -k https://"+sys.argv[1]+":"+sys.argv[2]+"/xenon-biggrid-nl/xenontest",sys.argv[1])
 except Exception as e1:
         print(e1) 
         traceback.print_exc()
