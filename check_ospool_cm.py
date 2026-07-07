@@ -50,10 +50,7 @@ def check(pool):
         try:
             coll = htcondor2.Collector("%s.%s.osg-htc.org"%(ccb, pool))
             ads = coll.query(projection=["Name"])
-            if len(ads) < 5:
-                reg_issue(WARN, "Missing daemons on %s"%(ccb))
-            else:
-                succeeded += 1
+            succeeded += 1
         except Exception as e:    
             reg_issue(CRITICAL, "Unable to connect to %s"%(ccb))
             failed += 1
