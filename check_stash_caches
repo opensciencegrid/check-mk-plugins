@@ -3,7 +3,9 @@
 import os
 import sys
 import json
+import socket
 import urllib.request
+import urllib.parse
 import traceback
 
 STATE_OK = 0
@@ -24,31 +26,74 @@ def normalize(host):
     return h
 
 
+def ensure_fqdn(host):
+    """
+    Ensures a hostname is represented as an FQDN.
+    Normalizes the input, and if it lacks a domain suffix (no dots),
+    attempts DNS resolution to find the fully qualified domain name.
+    """
+    if not host:
+        return host
+
+    h = normalize(host)
+
+    # If already contains dots, consider it an FQDN
+    if '.' in h:
+        return h
+
+    # Attempt DNS reverse/forward lookup for short names
+    try:
+        fqdn = socket.getfqdn(h)
+        if fqdn and '.' in fqdn:
+            return normalize(fqdn)
+    except Exception:
+        pass
+
+    return h
+
+
 def get_registry_caches():
     """
-    Fetches active cache server hostnames directly from the OSDF Registry API endpoint.
+    Fetches active cache server hostnames directly from the OSDF Registry API endpoint
+    and resolves them to FQDNs.
     """
     url = "https://osdf-registry.osg-htc.org/api/v1.0/registry_ui/servers"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 
     caches = set()
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=10) as resp:
         data_json = json.loads(resp.read().decode('utf-8'))
 
         for server in data_json:
-            # Check boolean field for caches
             if server.get('is_cache') is True:
-                # There is no top-level 'hostname' field in this API's
-                # response. The hostname lives in each registration's
-                # 'prefix', e.g. "/caches/xcachevirgo.pic.es" or
-                # "/caches/PURDUE_OSDF_CACHE" -> strip the leading
-                # "/caches/" segment to get the host/name.
+                raw_hosts = []
+
+                # 1. Try extracting hostname from endpoint URL (e.g. "https://cache.example.com:8443")
+                endpoint = server.get('endpoint') or server.get('url') or ''
+                if endpoint:
+                    if not endpoint.startswith(('http://', 'https://')):
+                        endpoint = 'https://' + endpoint
+                    parsed = urllib.parse.urlparse(endpoint)
+                    if parsed.hostname:
+                        raw_hosts.append(parsed.hostname)
+
+                # 2. Try direct hostname attribute if present
+                if server.get('hostname'):
+                    raw_hosts.append(server.get('hostname'))
+
+                # 3. Fall back to prefix registration parsing (e.g. "/caches/xcachevirgo.pic.es")
                 for reg in server.get('registration', []):
                     prefix = reg.get('prefix', '')
                     if prefix.startswith('/caches/'):
                         host = prefix[len('/caches/'):].strip('/')
                         if host:
-                            caches.add(normalize(host))
+                            raw_hosts.append(host)
+
+                # Convert harvested candidate hostnames to FQDNs
+                for raw_host in raw_hosts:
+                    fqdn = ensure_fqdn(raw_host)
+                    if fqdn:
+                        caches.add(fqdn)
 
     print("registry")
     print(caches)
@@ -56,21 +101,32 @@ def get_registry_caches():
 
 
 def get_monitoring_caches(params):
+    """
+    Fetches monitored cache hosts from Checkmk API and resolves them to FQDNs.
+    """
     caches = set()
     url = f"http://127.0.0.1:5001/osgmon/check_mk/webapi.py?{params}"
 
-    with urllib.request.urlopen(url) as response:
+    with urllib.request.urlopen(url, timeout=10) as response:
         s = response.read().decode('utf-8')
         data_json = json.loads(s)
         result = data_json.get('result', {})
         for host, info in result.items():
-            # 'path' comes back from the webapi with leading/trailing
-            # slashes, e.g. "/stash-caches" or "/stash-caches/", so a bare
-            # equality check against "stash-caches" never matches. Strip
-            # slashes (and normalize case) before comparing.
             path = (info.get('path') or '').strip('/').lower()
             if path == 'stash-caches':
-                caches.add(normalize(host))
+                candidate = host
+
+                # Checkmk host attributes may hold the FQDN under 'alias' or 'ipaddress'
+                attributes = info.get('attributes', {})
+                alias = attributes.get('alias', '')
+
+                # Prefer alias if primary host is a shortname and alias contains domain dots
+                if '.' not in candidate and '.' in alias:
+                    candidate = alias
+
+                fqdn = ensure_fqdn(candidate)
+                if fqdn:
+                    caches.add(fqdn)
 
     print("checkmk")
     print(caches)
