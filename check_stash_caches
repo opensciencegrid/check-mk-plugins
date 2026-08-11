@@ -29,7 +29,8 @@ def get_registry_caches():
                 host = server.get('hostname')
                 if host:
                     caches.add(host.strip())
-    print("registry" + caches);                            
+    print("registry")
+    print(caches)
     return caches
 
 
@@ -43,7 +44,8 @@ def get_monitoring_caches(params):
         for host in data_json.get('result', {}):
             if data_json['result'][host].get('path') == 'stash-caches':
                 caches.add(host)
-    print("checkmk" + caches)            
+    print("checmk")
+    print(caches)            
     return caches
 
 
