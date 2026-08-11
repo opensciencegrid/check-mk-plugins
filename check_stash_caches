@@ -25,22 +25,10 @@ def get_registry_caches():
         for server in data_json:
             # Check boolean field for caches
             if server.get('is_cache') is True:
-                registrations = server.get('registration') or []
-                for reg in registrations:
-                    # Filter for approved registrations
-                    admin_meta = reg.get('admin_metadata') or {}
-                    if admin_meta.get('status') == 'Approved':
-                        prefix = reg.get('prefix', '')
-                        if prefix:
-                            # Strip leading paths (e.g. /caches/, /origins/)
-                            clean_prefix = prefix.lstrip('/')
-                            if '/' in clean_prefix:
-                                clean_prefix = clean_prefix.split('/', 1)[1]
-                            
-                            # Strip port numbers and paths to isolate FQDN
-                            host = clean_prefix.split(':')[0].split('/')[0].strip()
-                            if host:
-                                caches.add(host)
+                # Extract directly from the hostname field
+                host = server.get('hostname')
+                if host:
+                    caches.add(host.strip())
                                 
     return caches
 
