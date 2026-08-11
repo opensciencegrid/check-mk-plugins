@@ -38,10 +38,17 @@ def get_registry_caches():
         for server in data_json:
             # Check boolean field for caches
             if server.get('is_cache') is True:
-                # Extract directly from the hostname field
-                host = server.get('hostname')
-                if host:
-                    caches.add(normalize(host))
+                # There is no top-level 'hostname' field in this API's
+                # response. The hostname lives in each registration's
+                # 'prefix', e.g. "/caches/xcachevirgo.pic.es" or
+                # "/caches/PURDUE_OSDF_CACHE" -> strip the leading
+                # "/caches/" segment to get the host/name.
+                for reg in server.get('registration', []):
+                    prefix = reg.get('prefix', '')
+                    if prefix.startswith('/caches/'):
+                        host = prefix[len('/caches/'):].strip('/')
+                        if host:
+                            caches.add(normalize(host))
 
     print("registry")
     print(caches)
