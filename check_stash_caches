@@ -11,11 +11,11 @@ STATE_WARNING = 1
 STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
-def get_director_caches():
+def get_registry_caches():
     """
-    Fetches active cache server hostnames directly from the OSDF Director API endpoint.
+    Fetches active cache server hostnames directly from the OSDF Registry API endpoint.
     """
-    url = "https://osdf-director.osg-htc.org/api/v1.0/director/servers"
+    url = "https://osdf-registry.osg-htc.org/api/v1.0/registry_ui/servers"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     
     caches = set()
@@ -23,17 +23,25 @@ def get_director_caches():
         data_json = json.loads(resp.read().decode('utf-8'))
         
         for server in data_json:
-            # Filter for server entries representing caches
-            server_type = str(server.get('type', '')).lower()
-            if server_type == 'cache':
-                # Prefer 'endpoint', fallback to 'url' or 'auth_endpoint'
-                endpoint = server.get('endpoint') or server.get('url') or server.get('auth_endpoint', '')
-                if endpoint:
-                    # Strip protocol (e.g. https://) and ports (e.g. :8444) to isolate FQDN
-                    host = endpoint.split("//")[-1].split(":")[0].split("/")[0].strip()
-                    if host:
-                        caches.add(host)
-                        
+            # Check boolean field for caches
+            if server.get('is_cache') is True:
+                registrations = server.get('registration') or []
+                for reg in registrations:
+                    # Filter for approved registrations
+                    admin_meta = reg.get('admin_metadata') or {}
+                    if admin_meta.get('status') == 'Approved':
+                        prefix = reg.get('prefix', '')
+                        if prefix:
+                            # Strip leading paths (e.g. /caches/, /origins/)
+                            clean_prefix = prefix.lstrip('/')
+                            if '/' in clean_prefix:
+                                clean_prefix = clean_prefix.split('/', 1)[1]
+                            
+                            # Strip port numbers and paths to isolate FQDN
+                            host = clean_prefix.split(':')[0].split('/')[0].strip()
+                            if host:
+                                caches.add(host)
+                                
     return caches
 
 
@@ -55,8 +63,8 @@ def main():
     states = [STATE_OK]
     messages = []
 
-    # Fetch active caches from OSDF Director
-    registry_caches = get_director_caches()
+    # Fetch active caches from OSDF Registry
+    registry_caches = get_registry_caches()
 
     # Safely retrieve OMD_ROOT with fallback to default site path
     omd_root = os.environ.get('OMD_ROOT', '/omd/sites/osgmon')
@@ -79,10 +87,10 @@ def main():
     if len(registry_diff) > 0 or len(monitoring_diff) > 0:
         states.append(STATE_CRITICAL)
 
-    messages.append("Hosts in OSDF Director and not in monitoring: ")
+    messages.append("Hosts in OSDF Registry and not in monitoring: ")
     messages.append(",".join(registry_diff) if registry_diff else "None")
     
-    messages.append(". Hosts in monitoring and not in OSDF Director: ")
+    messages.append(". Hosts in monitoring and not in OSDF Registry: ")
     messages.append(",".join(monitoring_diff) if monitoring_diff else "None")
     
     messages.append(f"\n| registry_diff = {len(registry_diff)} monitoring_diff = {len(monitoring_diff)}\n")
