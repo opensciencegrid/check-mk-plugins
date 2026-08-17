@@ -111,9 +111,6 @@ def get_registry_servers():
                     if is_origin:
                         origins.add(fqdn)
 
-    print("reg")
-    print(caches)
-    print(origins)
     return caches, origins
 
 
