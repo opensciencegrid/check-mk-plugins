@@ -53,10 +53,6 @@ def ensure_fqdn(host):
 
 
 def get_registry_servers():
-    """
-    Fetches active cache and origin server hostnames directly from the OSDF Director API.
-    Returns a tuple of sets: (caches, origins).
-    """
     url = "https://osdf-director.osg-htc.org/api/v1.0/director_ui/servers"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 
@@ -71,10 +67,17 @@ def get_registry_servers():
             is_cache = server.get('is_cache') is True or srv_type == 'cache'
             is_origin = server.get('is_origin') is True or srv_type == 'origin'
 
+            # Fix 1: Check registryPrefix directly
+            reg_prefix = server.get('registryPrefix', '') or server.get('registry_prefix', '')
+            if reg_prefix.startswith('/caches/'):
+                is_cache = True
+            elif reg_prefix.startswith('/origins/'):
+                is_origin = True
+
             candidate_hosts = []
 
             # 1. Extract host candidates from server attributes
-            for key in ('endpoint', 'url', 'auth_url', 'web_url', 'server_url', 'hostname', 'name'):
+            for key in ('endpoint', 'url', 'authUrl', 'auth_url', 'webUrl', 'web_url', 'server_url', 'hostname'):
                 val = server.get(key)
                 if val and isinstance(val, str):
                     if '://' in val:
@@ -84,7 +87,7 @@ def get_registry_servers():
                     else:
                         candidate_hosts.append(val)
 
-            # 2. Extract host candidates from namespace registration prefixes
+            # 2. Extract host candidates from namespace registration prefixes array (if present)
             for reg in server.get('registration', []):
                 prefix = reg.get('prefix', '')
                 if prefix.startswith('/caches/'):
@@ -106,11 +109,8 @@ def get_registry_servers():
                         caches.add(fqdn)
                     if is_origin:
                         origins.add(fqdn)
-    print("reg")
-    print(caches)
-    print(origins)
-    return caches, origins
 
+    return caches, origins
 
 def get_monitoring_servers(params):
     """
