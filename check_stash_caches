@@ -86,6 +86,7 @@ def get_registry_servers():
 
             # 2. Extract host candidates from namespace registration prefixes
             for reg in server.get('registration', []):
+                print(prefix)
                 prefix = reg.get('prefix', '')
                 if prefix.startswith('/caches/'):
                     is_cache = True
