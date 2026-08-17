@@ -86,7 +86,6 @@ def get_registry_servers():
 
             # 2. Extract host candidates from namespace registration prefixes
             for reg in server.get('registration', []):
-                print(prefix)
                 prefix = reg.get('prefix', '')
                 if prefix.startswith('/caches/'):
                     is_cache = True
@@ -127,9 +126,10 @@ def get_monitoring_servers(params):
 
         for host, info in result.items():
             path = (info.get('path') or '').strip('/').lower()
+            print(path)
             if path in ('OSDF_origins', 'OSDF_caches'):
                 candidates = [host]
-
+                
                 # Extract optional alias or IP address attributes
                 attributes = info.get('attributes', {})
                 if 'alias' in attributes:
