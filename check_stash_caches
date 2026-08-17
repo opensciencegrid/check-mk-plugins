@@ -15,10 +15,6 @@ STATE_UNKNOWN = 3
 
 
 def normalize(host):
-    """
-    Normalize a hostname: strip whitespace, lowercase, drop trailing dot,
-    and strip port if present.
-    """
     if not host:
         return ""
     h = host.strip().lower().rstrip('.')
@@ -26,91 +22,70 @@ def normalize(host):
         h = h.rsplit(':', 1)[0]
     return h
 
-
 def ensure_fqdn(host):
-    """
-    Returns the normalized FQDN if valid. Discards non-FQDN identifiers
-    unless local DNS can resolve them to a valid domain containing dots.
-    """
     h = normalize(host)
     if not h:
         return None
-
-    # Accept directly if it contains domain dots
     if '.' in h:
         return h
-
-    # Attempt local DNS reverse/forward lookup for shortnames
     try:
         fqdn = socket.getfqdn(h)
         if fqdn and '.' in fqdn:
             return normalize(fqdn)
     except Exception:
         pass
-
-    # Strictly discard shortnames or custom identifiers without domain dots
     return None
 
-
-def get_registry_servers():
-    url = "https://osdf-director.osg-htc.org/api/v1.0/director_ui/servers"
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-
+def parse_server_entry(server):
     caches = set()
     origins = set()
 
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data_json = json.loads(resp.read().decode('utf-8'))
+    srv_type = str(server.get('type', '') or server.get('filtered_type', '')).lower()
+    is_cache = server.get('is_cache') is True or srv_type == 'cache'
+    is_origin = server.get('is_origin') is True or srv_type == 'origin'
 
-        for server in data_json:
-            srv_type = str(server.get('type', '') or server.get('filtered_type', '')).lower()
-            is_cache = server.get('is_cache') is True or srv_type == 'cache'
-            is_origin = server.get('is_origin') is True or srv_type == 'origin'
+    reg_prefix = server.get('registryPrefix', '') or server.get('registry_prefix', '')
+    if reg_prefix.startswith('/caches/'):
+        is_cache = True
+    elif reg_prefix.startswith('/origins/'):
+        is_origin = True
 
-            # Fix 1: Check registryPrefix directly
-            reg_prefix = server.get('registryPrefix', '') or server.get('registry_prefix', '')
-            if reg_prefix.startswith('/caches/'):
-                is_cache = True
-            elif reg_prefix.startswith('/origins/'):
-                is_origin = True
+    candidate_hosts = []
 
-            candidate_hosts = []
+    for key in ('endpoint', 'url', 'authUrl', 'auth_url', 'webUrl', 'web_url', 'server_url', 'hostname'):
+        val = server.get(key)
+        if val and isinstance(val, str):
+            if '://' in val:
+                parsed = urllib.parse.urlparse(val)
+                if parsed.hostname:
+                    candidate_hosts.append(parsed.hostname)
+            else:
+                candidate_hosts.append(val)
 
-            # 1. Extract host candidates from server attributes
-            for key in ('endpoint', 'url', 'authUrl', 'auth_url', 'webUrl', 'web_url', 'server_url', 'hostname'):
-                val = server.get(key)
-                if val and isinstance(val, str):
-                    if '://' in val:
-                        parsed = urllib.parse.urlparse(val)
-                        if parsed.hostname:
-                            candidate_hosts.append(parsed.hostname)
-                    else:
-                        candidate_hosts.append(val)
+    for reg in server.get('registration', []):
+        prefix = reg.get('prefix', '')
+        if prefix.startswith('/caches/'):
+            is_cache = True
+            host = prefix[len('/caches/'):].strip('/')
+            if host:
+                candidate_hosts.append(host)
+        elif prefix.startswith('/origins/'):
+            is_origin = True
+            host = prefix[len('/origins/'):].strip('/')
+            if host:
+                candidate_hosts.append(host)
 
-            # 2. Extract host candidates from namespace registration prefixes array (if present)
-            for reg in server.get('registration', []):
-                prefix = reg.get('prefix', '')
-                if prefix.startswith('/caches/'):
-                    is_cache = True
-                    host = prefix[len('/caches/'):].strip('/')
-                    if host:
-                        candidate_hosts.append(host)
-                elif prefix.startswith('/origins/'):
-                    is_origin = True
-                    host = prefix[len('/origins/'):].strip('/')
-                    if host:
-                        candidate_hosts.append(host)
-
-            # 3. Categorize valid FQDNs into respective sets
-            for raw_host in candidate_hosts:
-                fqdn = ensure_fqdn(raw_host)
-                if fqdn:
-                    if is_cache:
-                        caches.add(fqdn)
-                    if is_origin:
-                        origins.add(fqdn)
+    for raw_host in candidate_hosts:
+        fqdn = ensure_fqdn(raw_host)
+        if fqdn:
+            if is_cache:
+                caches.add(fqdn)
+            if is_origin:
+                origins.add(fqdn)
 
     return caches, origins
+
+
 
 def get_monitoring_servers(params):
     """
