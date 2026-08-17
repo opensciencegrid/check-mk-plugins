@@ -150,9 +150,9 @@ def get_monitoring_servers(params):
                             origins.add(fqdn)
                         break
     # these hosts are registered as  Access Point
-    origins.add("ap40.uw.osg-htc.org);
-    origins.add("ap41.uw.osg-htc.org);
-    origins.add("ap43.uw.osg-htc.org);
+    origins.add("ap40.uw.osg-htc.org")
+    origins.add("ap41.uw.osg-htc.org")
+    origins.add("ap43.uw.osg-htc.org")
     return caches, origins
 
 
