@@ -55,6 +55,7 @@ def ensure_fqdn(host):
 def get_registry_servers():
     """
     Fetches active cache and origin server hostnames directly from the OSDF Director API.
+    Handles extractions from standard fields, namespace prefixes, and endpoint fallback parsing.
     Returns a tuple of sets: (caches, origins).
     """
     url = "https://osdf-director.osg-htc.org/api/v1.0/director_ui/servers"
@@ -66,7 +67,10 @@ def get_registry_servers():
     with urllib.request.urlopen(req, timeout=10) as resp:
         data_json = json.loads(resp.read().decode('utf-8'))
 
-        for server in data_json:
+        # Standardize payload structure if wrapped under a root key
+        servers = data_json.get('servers', data_json) if isinstance(data_json, dict) else data_json
+
+        for server in servers:
             srv_type = str(server.get('type', '') or server.get('filtered_type', '')).lower()
             is_cache = server.get('is_cache') is True or srv_type == 'cache'
             is_origin = server.get('is_origin') is True or srv_type == 'origin'
@@ -74,7 +78,7 @@ def get_registry_servers():
             candidate_hosts = []
 
             # 1. Extract host candidates from server attributes
-            for key in ('endpoint', 'url', 'auth_url', 'web_url', 'server_url', 'hostname', 'name'):
+            for key in ('endpoint', 'url', 'auth_url', 'web_url', 'webUrl', 'server_url', 'hostname', 'name'):
                 val = server.get(key)
                 if val and isinstance(val, str):
                     if '://' in val:
@@ -106,6 +110,7 @@ def get_registry_servers():
                         caches.add(fqdn)
                     if is_origin:
                         origins.add(fqdn)
+
     print("reg")
     print(caches)
     print(origins)
