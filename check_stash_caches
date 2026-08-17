@@ -1,143 +1,220 @@
 #!/usr/bin/env python3
 
-
+import os
 import sys
-import socket
 import json
-from urllib.parse import urlparse
+import socket
+import urllib.request
+import urllib.parse
+import traceback
 
-# ------------------------------------------------------------------------------
-# Helper Functions
-# ------------------------------------------------------------------------------
+STATE_OK = 0
+STATE_WARNING = 1
+STATE_CRITICAL = 2
+STATE_UNKNOWN = 3
+
+
+def normalize(host):
+    """
+    Normalize a hostname: strip whitespace, lowercase, drop trailing dot,
+    and strip port if present.
+    """
+    if not host:
+        return ""
+    h = host.strip().lower().rstrip('.')
+    if not h.startswith('[') and ':' in h:
+        h = h.rsplit(':', 1)[0]
+    return h
+
 
 def ensure_fqdn(host):
     """
-    Validates and normalizes a hostname into an FQDN.
-    Resolves shortnames via local DNS if necessary.
+    Returns the normalized FQDN if valid. Discards non-FQDN identifiers
+    unless local DNS can resolve them to a valid domain containing dots.
     """
-    if not host or not isinstance(host, str):
+    h = normalize(host)
+    if not h:
         return None
 
-    host = host.strip().lower()
+    # Accept directly if it contains domain dots
+    if '.' in h:
+        return h
 
-    # If it already contains dots, consider it an FQDN candidate
-    if '.' in host:
-        return host
-
-    # Fallback to local DNS lookup for shortnames
+    # Attempt local DNS reverse/forward lookup for shortnames
     try:
-        fqdn = socket.getfqdn(host)
-        if '.' in fqdn:
-            return fqdn.lower()
+        fqdn = socket.getfqdn(h)
+        if fqdn and '.' in fqdn:
+            return normalize(fqdn)
     except Exception:
         pass
 
+    # Strictly discard shortnames or custom identifiers without domain dots
     return None
 
 
-def extract_host_from_url(url_string):
+def get_registry_servers():
     """
-    Safely extract the hostname (FQDN) from a URL string.
-    Handles schemes (http://, https://) as well as bare host:port strings.
+    Fetches active cache and origin server hostnames directly from the OSDF Director API.
+    Returns a tuple of sets: (caches, origins).
     """
-    if not url_string or not isinstance(url_string, str):
-        return None
+    url = "https://osdf-director.osg-htc.org/api/v1.0/director_ui/servers"
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 
-    # Prepend scheme if missing so urlparse extracts netloc correctly
-    if not url_string.startswith(('http://', 'https://')):
-        url_string = 'https://' + url_string
-
-    try:
-        parsed = urlparse(url_string)
-        # parsed.hostname automatically strips port numbers and normalizes lowercase
-        return parsed.hostname
-    except Exception:
-        return None
-
-
-# ------------------------------------------------------------------------------
-# Core Registry Parser
-# ------------------------------------------------------------------------------
-
-def get_registry_servers(registry_data):
-    """
-    Extract origins and caches from OSDF topology/registry data by prioritizing
-    'url' and 'webUrl' endpoint attributes over path prefixes.
-    """
-    origins = set()
     caches = set()
+    origins = set()
 
-    # Support list or dict response structures
-    entries = registry_data if isinstance(registry_data, list) else registry_data.values()
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data_json = json.loads(resp.read().decode('utf-8'))
 
-    for item in entries:
-        if not isinstance(item, dict):
-            continue
+        for server in data_json:
+            srv_type = str(server.get('type', '') or server.get('filtered_type', '')).lower()
+            is_cache = server.get('is_cache') is True or srv_type == 'cache'
+            is_origin = server.get('is_origin') is True or srv_type == 'origin'
 
-        # Collect URL strings explicitly
-        candidate_urls = [
-            item.get('url'),
-            item.get('webUrl'),
-            item.get('endpoint'),
-        ]
+            candidate_hosts = []
 
-        # Parse nested endpoints if available
-        for ep in item.get('endpoints', []):
-            if isinstance(ep, dict):
-                candidate_urls.extend([ep.get('url'), ep.get('webUrl')])
+            # 1. Extract host candidates from server attributes
+            for key in ('endpoint', 'url', 'auth_url', 'web_url', 'server_url', 'hostname', 'name'):
+                val = server.get(key)
+                if val and isinstance(val, str):
+                    if '://' in val:
+                        parsed = urllib.parse.urlparse(val)
+                        if parsed.hostname:
+                            candidate_hosts.append(parsed.hostname)
+                    else:
+                        candidate_hosts.append(val)
 
-        # Extract FQDNs from valid URL fields
-        extracted_hosts = set()
-        for u in candidate_urls:
-            host = extract_host_from_url(u)
-            if host:
-                fqdn = ensure_fqdn(host)
+            # 2. Extract host candidates from namespace registration prefixes
+            for reg in server.get('registration', []):
+                prefix = reg.get('prefix', '')
+                if prefix.startswith('/caches/'):
+                    is_cache = True
+                    host = prefix[len('/caches/'):].strip('/')
+                    if host:
+                        candidate_hosts.append(host)
+                elif prefix.startswith('/origins/'):
+                    is_origin = True
+                    host = prefix[len('/origins/'):].strip('/')
+                    if host:
+                        candidate_hosts.append(host)
+
+            # 3. Categorize valid FQDNs into respective sets
+            for raw_host in candidate_hosts:
+                fqdn = ensure_fqdn(raw_host)
                 if fqdn:
-                    extracted_hosts.add(fqdn)
-
-        # Categorize by top-level registryPrefix or resource type
-        prefix = item.get('registryPrefix', '') or item.get('prefix', '')
-        resource_type = str(item.get('type', '')).lower()
-
-        if prefix.startswith('/caches') or 'cache' in resource_type:
-            caches.update(extracted_hosts)
-        elif prefix.startswith('/origins') or 'origin' in resource_type:
-            origins.update(extracted_hosts)
-
-    return origins, caches
+                    if is_cache:
+                        caches.add(fqdn)
+                    if is_origin:
+                        origins.add(fqdn)
+    print("reg"
+    print(caches)
+    print(origins)
+    return caches, origins
 
 
-# ------------------------------------------------------------------------------
-# Main Execution / Verification
-# ------------------------------------------------------------------------------
+def get_monitoring_servers(params):
+    """
+    Fetches monitored cache and origin hosts from Checkmk API.
+    Returns a tuple of sets: (caches, origins).
+    """
+    caches = set()
+    origins = set()
+    url = f"http://127.0.0.1:5001/osgmon/check_mk/webapi.py?{params}"
+
+    with urllib.request.urlopen(url, timeout=10) as response:
+        s = response.read().decode('utf-8')
+        data_json = json.loads(s)
+        result = data_json.get('result', {})
+
+        for host, info in result.items():
+            path = (info.get('path') or '').strip('/').lower()
+            if path in ('osdf/osdf_caches', 'osdf/osdf_origins'):
+                candidates = [host]
+
+                # Extract optional alias or IP address attributes
+                attributes = info.get('attributes', {})
+                if 'alias' in attributes:
+                    candidates.append(attributes['alias'])
+                if 'ipaddress' in attributes:
+                    candidates.append(attributes['ipaddress'])
+
+                # Try resolving candidates to find a valid FQDN
+                for candidate in candidates:
+                    fqdn = ensure_fqdn(candidate)
+                    if fqdn:
+                        if path == 'osdf/osdf_caches':
+                            caches.add(fqdn)
+                        elif path == 'osdf/osdf_origins':
+                            origins.add(fqdn)
+                        break
+    print(caches)
+    print(origins)
+    return caches, origins
+
 
 def main():
-    # Example OSDF Registry JSON payload
-    sample_registry_json = [
-        {
-            "registryPrefix": "/caches/CIT_LIGO_OSDFCACHE",
-            "type": "cache",
-            "url": "https://osdfcache.ligo.caltech.edu:8443",
-            "webUrl": "https://osdfcache.ligo.caltech.edu:8444"
-        },
-        {
-            "registryPrefix": "/origins/OSG_STORAGE",
-            "type": "origin",
-            "url": "https://origin.osgdev.org:1094"
-        }
-    ]
+    states = [STATE_OK]
+    messages = []
 
-    print("Processing OSDF Registry Data...")
-    origins, caches = get_registry_servers(sample_registry_json)
+    # 1. Fetch active cache and origin FQDNs from OSDF Director
+    registry_caches, registry_origins = get_registry_servers()
 
-    print("\n--- Discovered Caches ---")
-    for cache in sorted(caches):
-        print(f"  [CACHE]  {cache}")
+    # 2. Authenticate and fetch monitored hosts from Checkmk
+    omd_root = os.environ.get('OMD_ROOT', '/omd/sites/osgmon')
+    secret_filepath = os.path.join(omd_root, "var/check_mk/web/automation/automation.secret")
 
-    print("\n--- Discovered Origins ---")
-    for origin in sorted(origins):
-        print(f"  [ORIGIN] {origin}")
+    if not os.path.exists(secret_filepath):
+        print(f"UNKNOWN - Automation secret file not found at {secret_filepath}")
+        sys.exit(STATE_UNKNOWN)
+
+    with open(secret_filepath, 'r') as access:
+        secret_line = access.readline().strip()
+
+    action = "action=get_all_hosts"
+    password = f"{action}&_username=automation&_secret={secret_line}"
+    monitoring_caches, monitoring_origins = get_monitoring_servers(password)
+
+    # 3. Calculate set differences
+    cache_reg_diff = registry_caches.difference(monitoring_caches)
+    cache_mon_diff = monitoring_caches.difference(registry_caches)
+
+    origin_reg_diff = registry_origins.difference(monitoring_origins)
+    origin_mon_diff = monitoring_origins.difference(registry_origins)
+
+    if (cache_reg_diff or cache_mon_diff or origin_reg_diff or origin_mon_diff):
+        states.append(STATE_CRITICAL)
+
+    # Output messages
+    messages.append("Caches in Director not in monitoring: ")
+    messages.append(",".join(sorted(cache_reg_diff)) if cache_reg_diff else "None")
+
+    messages.append(". Caches in monitoring not in Director: ")
+    messages.append(",".join(sorted(cache_mon_diff)) if cache_mon_diff else "None")
+
+    messages.append(". Origins in Director not in monitoring: ")
+    messages.append(",".join(sorted(origin_reg_diff)) if origin_reg_diff else "None")
+
+    messages.append(". Origins in monitoring not in Director: ")
+    messages.append(",".join(sorted(origin_mon_diff)) if origin_mon_diff else "None")
+
+    # Performance metrics string for Checkmk
+    perf_data = (
+        f"\n| cache_reg_diff={len(cache_reg_diff)} "
+        f"cache_mon_diff={len(cache_mon_diff)} "
+        f"origin_reg_diff={len(origin_reg_diff)} "
+        f"origin_mon_diff={len(origin_mon_diff)}\n"
+    )
+    messages.append(perf_data)
+
+    print("".join(messages))
+    sys.exit(max(states))
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as exc:
+        print(f"CRITICAL - Exception occurred when running probe: {exc}")
+        var = traceback.format_exc()
+        print(var)
+        sys.exit(STATE_CRITICAL)
