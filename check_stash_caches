@@ -126,8 +126,7 @@ def get_monitoring_servers(params):
 
         for host, info in result.items():
             path = (info.get('path') or '').strip('/').lower()
-            print(path)
-            if path in ('OSDF_origins', 'OSDF_caches'):
+            if path in ('osdf/osdf_caches', 'osdf/osdf_origins'):
                 candidates = [host]
                 
                 # Extract optional alias or IP address attributes
@@ -141,9 +140,9 @@ def get_monitoring_servers(params):
                 for candidate in candidates:
                     fqdn = ensure_fqdn(candidate)
                     if fqdn:
-                        if path == 'OSDF_caches':
+                        if path == 'osdf/osdf_caches':
                             caches.add(fqdn)
-                        elif path == 'OSDF_origins':
+                        elif path == 'osdf/osdf_origins':
                             origins.add(fqdn)
                         break
 
