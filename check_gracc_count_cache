@@ -8,11 +8,11 @@ import sys
 import time
 import requests
 import json
-import htcondor
+import htcondor2
 
 #Uncomment to enable debugging of condor collector communication
-#htcondor.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
-#htcondor.enable_debug()
+#htcondor2.param['TOOL_DEBUG'] = 'D_FULLDEBUG,D_SECURITY'
+#htcondor2.enable_debug()
 
 # Nagios exit status
 STATE_OK = 0
@@ -21,9 +21,9 @@ STATE_CRITICAL = 2
 STATE_UNKNOWN = 3
 
 def count_history_jobs(hostname):
-    coll = htcondor.Collector("%s:9619" % hostname )
-    schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, hostname)
-    schedd = htcondor.Schedd(schedd_ad)
+    coll = htcondor2.Collector("%s:9619" % hostname )
+    schedd_ad = coll.locate(htcondor2.DaemonTypes.Schedd, hostname)
+    schedd = htcondor2.Schedd(schedd_ad)
     job_list = list(schedd.history(requirements='JobCurrentStartDate',
                                    projection=["JobFinishedHookDone"],
                                    since="JobFinishedHookDone < %d" % (time.time()-2*86400),

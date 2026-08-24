@@ -3,7 +3,6 @@
 
 import argparse
 import sys
-#import htcondor
 import os
 
 # Nagios exit status
@@ -46,12 +45,12 @@ def main():
             print (messages)
 
     #import htcondor after os.environ changed
-    import htcondor
+    import htcondor2
     try:
-        coll = htcondor.Collector(args.collector)
-        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-        schedd = htcondor.Schedd(schedd_ad)
-        jobs = schedd.xquery(constraint='RoutedJob == TRUE', projection=job_attrs)
+        coll = htcondor2.Collector(args.collector)
+        schedd_ad = coll.locate(htcondor2.DaemonTypes.Schedd)
+        schedd = htcondor2.Schedd(schedd_ad)
+        jobs = schedd.query(constraint='RoutedJob == TRUE', projection=job_attrs)
     except IOError as e:
         # Connection failed
         states.append(STATE_CRITICAL)

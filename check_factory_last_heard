@@ -3,7 +3,7 @@
 
 import argparse
 import sys
-import htcondor
+import htcondor2
 import os
 import time
 
@@ -31,12 +31,12 @@ def main():
     ]
 
     try:
-        htcondor.param['SEC_DEFAULT_INTEGRITY']='optional'
-        coll = htcondor.Collector(args.collector)
-        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        htcondor2.param['SEC_DEFAULT_INTEGRITY']='optional'
+        coll = htcondor2.Collector(args.collector)
+        schedd_ad = coll.locate(htcondor2.DaemonTypes.Schedd)
         #print (schedd_ad)
         now = time.time()
-        schedd_list = coll.query(htcondor.htcondor.AdTypes.Schedd, projection=schedd_attrs)
+        schedd_list = coll.query(htcondor2.AdTypes.Schedd, projection=schedd_attrs)
         for schedd in schedd_list:
             # Find the most recently heard schedd
             if schedd['LastHeardFrom'] >= last_heard_from:

@@ -4,7 +4,6 @@
 import argparse
 import sys
 import time
-#import htcondor
 import os
 
 # Nagios exit status
@@ -44,10 +43,10 @@ def main():
 
 
     #import htcondor after os.environ changed
-    import htcondor
+    import htcondor2
     try:
-        coll = htcondor.Collector(args.collector)
-        daemon_ads = coll.query(htcondor.AdTypes.Any, projection = ['Name'])
+        coll = htcondor2.Collector(args.collector)
+        daemon_ads = coll.query(htcondor2.AdTypes.Any, projection = ['Name'])
     except IOError as e:
         # Connection failed
         states.append(STATE_CRITICAL)
