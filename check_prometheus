@@ -1,3 +1,11 @@
 #!/bin/bash
 
-wget -qO- --header="Authorization: Bearer $MY_TOKEN" https://$1:$2/metrics | grep "$3" | grep "$4" | awk '{print $2}'
+resp=`wget -qO- --header="Authorization: Bearer $MY_TOKEN" https://$1:$2/metrics | grep "$3" | grep "$4" | awk '{print $2}'`
+
+echo $resp
+
+if [ "$resp" -eq "5" ]; then
+    exit 0
+else
+    exit 2
+fi
