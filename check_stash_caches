@@ -121,7 +121,7 @@ def get_monitoring_servers(params):
     """
     caches = set()
     origins = set()
-    url = f"http://127.0.0.1:5001/osgmon/check_mk/webapi.py?{params}"
+    url = f"http://127.0.0.1:5000/osgmon/check_mk/webapi.py?{params}"
 
     with urllib.request.urlopen(url, timeout=10) as response:
         s = response.read().decode('utf-8')
