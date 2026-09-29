@@ -1,0 +1,3 @@
+#!/bin/bash
+
+wget -qO- --header="Authorization: Bearer $MY_TOKEN" https://$1:$2/metrics | grep "$3" | grep "$4" | awk '{print $2}'
