@@ -38,7 +38,7 @@ def is_hosted_fqdn(fqdn):
 def get_monitoring_hosts(params):
 
      hosts = set();
-     url = "http://127.0.0.1:5001/osgmon/check_mk/webapi.py?%s" % params
+     url = "http://127.0.0.1:5000/osgmon/check_mk/webapi.py?%s" % params
      response = urllib.request.urlopen(url)
      s = response.read().decode('utf-8')
      data_json = json.loads(s)
