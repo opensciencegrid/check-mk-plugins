@@ -26,13 +26,13 @@ def main():
         sys.exit(state)
     except socket.gaierror as e:
         # Could not resolve hostname => UNKNOWN
-        print 'Error: %s' % str(e)
+        print(f'Error: {e}')
         sys.exit(STATE_UNKNOWN)
     except Exception as e:
         # Calling everything else critical:
         # - socket.error   (Network is unreachable)
         # - socket.timeout
-        print 'Error: %s' % str(e)
+        print(f'Error: {e}')
         sys.exit(STATE_CRITICAL)
 
 def gracc_health(host):
