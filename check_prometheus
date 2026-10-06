@@ -1,8 +1,10 @@
 #!/bin/bash
 
-resp=`wget -qO- --header="Authorization: Bearer $MY_TOKEN" https://$1:$2/metrics | grep '$3' | awk '{print $2}'`
+MY_TOKEN=$(cat "$HOME/var/check_mk/web/automation/automation.secret")
 
-echo $resp
+resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$1:$2/metrics" | grep "$3" | awk '{print $2}')
+
+echo "$resp"
 
 if [ "$resp" -eq "5" ]; then
     exit 0
