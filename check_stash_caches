@@ -144,10 +144,12 @@ def get_monitoring_servers(username="automation"):
         "Accept": "application/json",
     }
 
-    secret = get_automation_secret()
-    print(secret)
     if secret:
-        headers["Authorization"] = f"Bearer {username} {secret}"
+        auth_bytes = f"{username}:{secret}".encode("utf-8")
+        base64_auth = base64.b64encode(auth_bytes).decode("utf-8")
+        headers["Authorization"] = f"Basic {base64_auth}"
+
+    req = urllib.request.Request(url, headers=headers)
 
 
     req = urllib.request.Request(url, headers=headers)
