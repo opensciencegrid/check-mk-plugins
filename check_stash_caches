@@ -124,6 +124,7 @@ def get_automation_secret():
     )
     try:
         with open(secret_path, "r", encoding="utf-8") as f:
+            print(f"gotach")
             return f.read().strip()
     except FileNotFoundError:
         print(f"Warning: Automation secret file not found at {secret_path}")
