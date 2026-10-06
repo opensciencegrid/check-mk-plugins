@@ -114,9 +114,6 @@ def get_registry_servers():
     return caches, origins
 
 
-import json
-import urllib.request
-
 def get_automation_secret():
     """Reads the Checkmk secret from the local site directory (~/var/check_mk/web/automation/automation.secret)."""
     secret_path = os.path.expanduser(
@@ -151,6 +148,7 @@ def get_monitoring_servers(username="automation"):
     secret = get_automation_secret()
     if secret:
         headers["Authorization"] = f"Bearer {username} {secret}"
+
 
     req = urllib.request.Request(url, headers=headers)
 
