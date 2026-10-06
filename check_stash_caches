@@ -114,47 +114,79 @@ def get_registry_servers():
     return caches, origins
 
 
-def get_monitoring_servers(params):
-    """
-    Fetches monitored cache and origin hosts from Checkmk API.
+import json
+import urllib.request
+
+
+def get_monitoring_servers(auth_token=None):
+    """Fetches monitored cache and origin hosts from Checkmk REST API (v1.0).
+
     Returns a tuple of sets: (caches, origins).
     """
     caches = set()
     origins = set()
-    #url = f"http://127.0.0.1:5000/osgmon/check_mk/webapi.py?{params}"
-    url = f"http://127.0.0.1:5000/osgmon/check_mk/api/1.0/webapi.py?{params}"
-    with urllib.request.urlopen(url, timeout=10) as response:
-        s = response.read().decode('utf-8')
-        data_json = json.loads(s)
-        result = data_json.get('result', {})
 
-        for host, info in result.items():
-            path = (info.get('path') or '').strip('/').lower()
-            if path in ('osdf/osdf_caches', 'osdf/osdf_origins'):
-                candidates = [host]
+    # Checkmk v1.0 REST API endpoint for retrieving all configured hosts
+    url = "http://127.0.0.1:5000/osgmon/check_mk/api/1.0/domain-types/host_config/collections/all"
 
-                # Extract optional alias or IP address attributes
-                attributes = info.get('attributes', {})
-                if 'alias' in attributes:
-                    candidates.append(attributes['alias'])
-                if 'ipaddress' in attributes:
-                    candidates.append(attributes['ipaddress'])
+    headers = {
+        "Accept": "application/json",
+    }
 
-                # Try resolving candidates to find a valid FQDN
-                for candidate in candidates:
-                    fqdn = ensure_fqdn(candidate)
-                    if fqdn:
-                        if path == 'osdf/osdf_caches':
-                            caches.add(fqdn)
-                        elif path == 'osdf/osdf_origins':
-                            origins.add(fqdn)
-                        break
-    # these hosts are registered as  Access Point
+    # Add Authorization header if Checkmk authentication is enabled
+    # Format: "Bearer <username> <secret>"
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
+
+    req = urllib.request.Request(url, headers=headers)
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            s = response.read().decode("utf-8")
+            data_json = json.loads(s)
+
+            # REST API returns host items under the 'value' key
+            hosts = data_json.get("value", [])
+
+            for host_item in hosts:
+                # Primary host identifier or title
+                host_id = host_item.get("id") or host_item.get("title")
+
+                # Extract extensions and attributes
+                extensions = host_item.get("extensions", {})
+                folder = extensions.get("folder", "").strip("/").lower()
+                attributes = extensions.get("attributes", {})
+
+                if folder in ("osdf/osdf_caches", "osdf/osdf_origins"):
+                    candidates = []
+                    if host_id:
+                        candidates.append(host_id)
+
+                    # Extract optional alias or IP address attributes if present
+                    if "alias" in attributes:
+                        candidates.append(attributes["alias"])
+                    if "ipaddress" in attributes:
+                        candidates.append(attributes["ipaddress"])
+
+                    # Try resolving candidates to find a valid FQDN
+                    for candidate in candidates:
+                        fqdn = ensure_fqdn(candidate)
+                        if fqdn:
+                            if folder == "osdf/osdf_caches":
+                                caches.add(fqdn)
+                            elif folder == "osdf/osdf_origins":
+                                origins.add(fqdn)
+                            break
+
+    except Exception as e:
+        print(f"Error fetching hosts from Checkmk REST API: {e}")
+
+    # These hosts are registered as Access Points
     origins.add("ap40.uw.osg-htc.org")
     origins.add("ap41.uw.osg-htc.org")
     origins.add("ap43.uw.osg-htc.org")
-    return caches, origins
 
+    return caches, origins
 
 def main():
     states = [STATE_OK]
