@@ -130,7 +130,7 @@ def get_automation_secret():
         print(f"Warning: Failed to read automation secret file: {e}")
         return None
 
-def get_monitoring_servers(username="automation"):
+def get_monitoring_servers(username="046f68567b094512017b2c34e0890968@ucsd.edu"):
     """Fetches monitored cache and origin hosts from Checkmk REST API (v1.0).
 
     Returns a tuple of sets: (caches, origins).
