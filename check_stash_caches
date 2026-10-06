@@ -117,6 +117,20 @@ def get_registry_servers():
 import json
 import urllib.request
 
+def get_automation_secret():
+    """Reads the Checkmk secret from the local site directory (~/var/check_mk/web/automation/automation.secret)."""
+    secret_path = os.path.expanduser(
+        "~/var/check_mk/web/automation/automation.secret"
+    )
+    try:
+        with open(secret_path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        print(f"Warning: Automation secret file not found at {secret_path}")
+        return None
+    except Exception as e:
+        print(f"Warning: Failed to read automation secret file: {e}")
+        return None
 
 def get_monitoring_servers(auth_token=None):
     """Fetches monitored cache and origin hosts from Checkmk REST API (v1.0).
@@ -133,10 +147,9 @@ def get_monitoring_servers(auth_token=None):
         "Accept": "application/json",
     }
 
-    # Add Authorization header if Checkmk authentication is enabled
-    # Format: "Bearer <username> <secret>"
-    if auth_token:
-        headers["Authorization"] = f"Bearer {auth_token}"
+    secret = get_automation_secret()
+    if secret:
+        headers["Authorization"] = f"Bearer {username} {secret}"
 
     req = urllib.request.Request(url, headers=headers)
 
