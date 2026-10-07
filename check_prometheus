@@ -6,7 +6,6 @@ PORT="$3"
 
 # List of components that must have a status of 5
 COMPONENTS=(
-    "cmsd"
     "config-updates"
     "director"
     "federation"
