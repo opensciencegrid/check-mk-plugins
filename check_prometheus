@@ -7,7 +7,7 @@ PORT=$(echo $3)
 FILTER=$(echo $4)
 
 #resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$1:$2/metrics" | grep "$3" | awk '{print $2}')
-resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$HOSTNAME:$PORT/metrics" | grep "$FILTER" 2>/dev/null | awk '{print $HOSTADDRESS}')
+resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$HOSTNAME:$PORT/metrics" | grep "$FILTER" 2>/dev/null | awk '{print $2}')
 echo "$resp"
 
 if [ -z "$resp" ]; then
