@@ -1,12 +1,18 @@
 #!/bin/bash
 
-MY_TOKEN=$(cat "$HOME/var/check_mk/web/automation/automation.secret")
+#MY_TOKEN=$(cat "$HOME/var/check_mk/web/automation/automation.secret")
+MY_TOKEN=$(echo $1)
+HOSTNAME=$(echo $2)
+PORT=$(echo $3)
+FILTER=$(echo $4)
 
-resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$1:$2/metrics" | grep "$3" | awk '{print $2}')
-
+#resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$1:$2/metrics" | grep "$3" | awk '{print $2}')
+resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$HOSTNAME:$PORT/metrics" | grep "$FILTER" 2>/dev/null | awk '{print $HOSTADDRESS}')
 echo "$resp"
 
-if [ "$resp" -eq "5" ]; then
+if [ -z "$resp" ]; then
+    exit 1
+elif [ "$resp" = "5" ]; then
     exit 0
 else
     exit 2
