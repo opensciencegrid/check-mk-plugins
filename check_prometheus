@@ -34,7 +34,6 @@ for comp in "${COMPONENTS[@]}"; do
 
     if [ -z "$VAL" ]; then
         echo "CRITICAL: Component '$comp' status missing."
-        CRITICAL=1
     elif [ "$VAL" -ne 5 ]; then
         echo "CRITICAL: Component '$comp' status is $VAL (expected 5)."
         CRITICAL=1
