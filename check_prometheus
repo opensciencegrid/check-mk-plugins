@@ -1,19 +1,51 @@
 #!/bin/bash
 
-#MY_TOKEN=$(cat "$HOME/var/check_mk/web/automation/automation.secret")
-MY_TOKEN=$(echo $1)
-HOSTNAME=$(echo $2)
-PORT=$(echo $3)
-FILTER=$(echo $4)
+MY_TOKEN="$1"
+HOSTNAME="$2"
+PORT="$3"
 
-#resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$1:$2/metrics" | grep "$3" | awk '{print $2}')
-resp=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$HOSTNAME:$PORT/metrics" | grep "$FILTER" 2>/dev/null | awk '{print $2}')
-echo "$resp"
+# List of components that must have a status of 5
+COMPONENTS=(
+    "cmsd"
+    "config-updates"
+    "director"
+    "federation"
+    "prometheus"
+    "registry"
+    "storage"
+    "web-ui"
+    "xrootd"
+    "IO-concurrency"
+)
 
-if [ -z "$resp" ]; then
+# Fetch all metrics once to avoid multiple HTTP calls
+METRICS_DATA=$(wget -qO- --header="Authorization: Bearer $MY_TOKEN" "https://$HOSTNAME:$PORT/metrics" 2>/dev/null)
+
+# Exit with code 1 if metrics couldn't be fetched
+if [ -z "$METRICS_DATA" ]; then
+    echo "CRITICAL: Unable to fetch metrics or empty response."
     exit 1
-elif [ "$resp" = "5" ]; then
-    exit 0
-else
+fi
+
+CRITICAL=0
+
+for comp in "${COMPONENTS[@]}"; do
+    # Extract the value for pelican_component_health_status{component="<comp>"}
+    VAL=$(echo "$METRICS_DATA" | grep -E "pelican_component_health_status\{component=\"$comp\"\}" | awk '{print $2}')
+
+    if [ -z "$VAL" ]; then
+        echo "CRITICAL: Component '$comp' status missing."
+        CRITICAL=1
+    elif [ "$VAL" -ne 5 ]; then
+        echo "CRITICAL: Component '$comp' status is $VAL (expected 5)."
+        CRITICAL=1
+    else
+        echo "OK: Component '$comp' status is 5."
+    fi
+done
+
+if [ "$CRITICAL" -eq 1 ]; then
     exit 2
 fi
+
+exit 0
