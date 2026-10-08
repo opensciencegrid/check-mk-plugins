@@ -44,6 +44,7 @@ def main():
 
     #import htcondor after os.environ changed
     import htcondor2
+    daemon_ads = []
     try:
         coll = htcondor2.Collector(args.collector)
         daemon_ads = coll.query(htcondor2.AdTypes.Any, projection = ['Name'])
@@ -56,14 +57,12 @@ def main():
         states.append(STATE_UNKNOWN)
         messages.append(str(e) + " " + args.collector+ " failed.")
 
-    number_of_daemons = len(daemon_ads) 
+    number_of_daemons = len(daemon_ads)
     if number_of_daemons:
         messages.append(str(number_of_daemons) + " active daemons")
-        if number_of_daemons == 0:
-            states.append(STATE_WARNING)
     else:
         messages.append("status unknown")
-        states.append(STATE_UNDOWN)
+        states.append(STATE_UNKNOWN)
 
     state = max(states)
     message = ', '.join(messages)
@@ -74,7 +73,11 @@ def main():
         message = 'OK'
 
     print(message + perf_data)
-    sys.exit(state)
+    # The htcondor bindings over-release Py_None per returned ad; with
+    # thousands of ads the interpreter aborts during finalization
+    # ("none_dealloc: deallocating None", exit 134). Skip finalization.
+    sys.stdout.flush()
+    os._exit(state)
 
 def parse_args():
     parser = argparse.ArgumentParser()
