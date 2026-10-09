@@ -5,6 +5,7 @@ import argparse
 import sys
 import time
 import os
+import subprocess
 
 # Nagios exit status
 STATE_OK = 0
@@ -42,16 +43,27 @@ def main():
             print (messages)
 
 
-    #import htcondor after os.environ changed
-    import htcondor2
+    # Use condor_status rather than the htcondor2 bindings: on large pools
+    # the bindings over-release Py_None and Python aborts mid-query
+    # ("none_dealloc: deallocating None", exit 134).
+    # os.environ (with any extra_vars) is inherited by condor_status.
     daemon_ads = []
     try:
-        coll = htcondor2.Collector(args.collector)
-        daemon_ads = coll.query(htcondor2.AdTypes.Any, projection = ['Name'])
-    except IOError as e:
-        # Connection failed
+        result = subprocess.run(
+            ['condor_status', '-pool', args.collector, '-any', '-af', 'Name'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=args.timeout)
+        if result.returncode == 0:
+            daemon_ads = [line for line in result.stdout.splitlines() if line.strip()]
+        else:
+            # Connection failed
+            states.append(STATE_CRITICAL)
+            error = result.stderr.strip().splitlines()
+            messages.append((error[-1] if error else "condor_status exited %d" % result.returncode)
+                            + " " + args.collector + " failed.")
+    except subprocess.TimeoutExpired:
         states.append(STATE_CRITICAL)
-        messages.append(str(e) + " " +args.collector + " failed.")
+        messages.append("condor_status timed out after %d seconds. %s failed." % (args.timeout, args.collector))
     except Exception as e:
         # Other error
         states.append(STATE_UNKNOWN)
@@ -60,7 +72,8 @@ def main():
     number_of_daemons = len(daemon_ads)
     if number_of_daemons:
         messages.append(str(number_of_daemons) + " active daemons")
-    else:
+    elif max(states) == STATE_OK:
+        # Query succeeded but returned nothing
         messages.append("status unknown")
         states.append(STATE_UNKNOWN)
 
@@ -73,11 +86,7 @@ def main():
         message = 'OK'
 
     print(message + perf_data)
-    # The htcondor bindings over-release Py_None per returned ad; with
-    # thousands of ads the interpreter aborts during finalization
-    # ("none_dealloc: deallocating None", exit 134). Skip finalization.
-    sys.stdout.flush()
-    os._exit(state)
+    sys.exit(state)
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -85,6 +94,8 @@ def parse_args():
                         help='Collector hostname for condor_status -pool')
     parser.add_argument('--extra-vars', dest='extra_vars', type=str, 
                         help='Overwrite variables defined in condor_config_val, seperated by \';\', e.g. _condor_VAR1=value1;_condor_VAR2=value2')
+    parser.add_argument('--timeout', dest='timeout', type=int, default=50,
+                        help='Seconds to wait for condor_status (default 50)')
     return parser.parse_args()
 
 if __name__ == "__main__":
