@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
 import argparse
@@ -73,11 +73,7 @@ def main():
         message = 'OK'
 
     print(message + perf_data)
-    # The htcondor bindings over-release Py_None per returned ad; with
-    # thousands of ads the interpreter aborts during finalization
-    # ("none_dealloc: deallocating None", exit 134). Skip finalization.
-    sys.stdout.flush()
-    os._exit(state)
+    sys.exit(state)
 
 def parse_args():
     parser = argparse.ArgumentParser()
